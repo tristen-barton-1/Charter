@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 8%;
+  --foreground: 210 40% 96%;
+  --card: 222 47% 11%;
+  --card-foreground: 210 40% 96%;
+  --muted: 223 28% 16%;
+  --muted-foreground: 215 20% 70%;
+  --border: 223 22% 24%;
+  --input: 223 22% 24%;
+  --ring: 190 95% 44%;
+  --primary: 190 95% 44%;
+  --primary-foreground: 222 47% 8%;
+  --secondary: 223 22% 19%;
+  --secondary-foreground: 210 40% 96%;
+  --accent: 168 85% 43%;
+  --accent-foreground: 222 47% 8%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-manrope), "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.12), transparent 34%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 30%),
+    linear-gradient(180deg, #0f172a 0%, #111827 50%, #0b1220 100%);
+  color: hsl(var(--foreground));
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.2);
+}
+
+textarea,
+select,
+input,
+button {
+  font: inherit;
+}
+
+@layer components {
+  .glass-panel {
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(18px);
+  }
+}
