@@ -55,14 +55,21 @@ export default function RecordVisitPage() {
   const [recorderCapable, setRecorderCapable] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaChunksRef = useRef<BlobPart[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const abandonRecordingRef = useRef(false);
 
   const tearDownMedia = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      try {
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     mediaStreamRef.current = null;
     mediaRecorderRef.current = null;
-    mediaChunksRef.current = [];
   }, []);
 
   useEffect(() => {
@@ -168,6 +175,7 @@ export default function RecordVisitPage() {
 
     void (async () => {
       try {
+        abandonRecordingRef.current = false;
         setPhase("preparing");
         setErrorMessage(null);
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -179,29 +187,33 @@ export default function RecordVisitPage() {
         const mimeType = pickWhisperMimeType();
         const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
         mediaRecorderRef.current = recorder;
-        mediaChunksRef.current = [];
+        const sessionChunks: BlobPart[] = [];
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
-            mediaChunksRef.current.push(event.data);
+            sessionChunks.push(event.data);
           }
         };
         recorder.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
           mediaStreamRef.current = null;
           mediaRecorderRef.current = null;
-          const blob = new Blob(mediaChunksRef.current, {
+          if (cancelled || abandonRecordingRef.current) {
+            return;
+          }
+          const blob = new Blob(sessionChunks, {
             type: recorder.mimeType || mimeType || "audio/webm",
           });
-          mediaChunksRef.current = [];
           if (blob.size < 256) {
             setPhase("error");
-            setErrorMessage("Recording was too short. Try again.");
+            setErrorMessage(
+              "No audio was captured (empty recording). Check the mic and try again, or use another browser.",
+            );
             return;
           }
           setPhase("transcribing");
           void runTranscribeAndChart(blob);
         };
-        recorder.start();
+        recorder.start(250);
         setPhase("recording");
       } catch {
         if (!cancelled) {
@@ -229,6 +241,7 @@ export default function RecordVisitPage() {
   }
 
   function handleCancel() {
+    abandonRecordingRef.current = true;
     tearDownMedia();
     sessionStorage.removeItem(RECORD_FLOW_CONTEXT_KEY);
     router.push(`/encounter/${patientId}`);
