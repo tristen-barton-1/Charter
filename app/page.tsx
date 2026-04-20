@@ -12,10 +12,10 @@ import {
 } from "@/lib/backend";
 import type { NewPatientForm, PatientFormMode, PatientSortKey } from "@/components/patient-dashboard";
 import {
+  applyPendingEncounterToState,
   createDefaultAppState,
   createWorkspaceFromPatient,
   loadPersistedAppState,
-  PENDING_ENCOUNTER_KEY,
   savePersistedAppState,
   type AppState,
   type Workspace,
@@ -113,8 +113,12 @@ export default function Page() {
 
   function startEncounter(patientId: string) {
     const startedAt = new Date().toISOString();
-    sessionStorage.setItem(PENDING_ENCOUNTER_KEY, JSON.stringify({ patientId, startedAt }));
-    router.push(`/encounter/${patientId}`);
+    setAppState((prev) => {
+      const next = applyPendingEncounterToState(prev, patientId, startedAt);
+      savePersistedAppState(next);
+      return next;
+    });
+    router.push(`/encounter/${patientId}/record`);
   }
 
   function cancelEncounter(patientId: string) {
@@ -339,7 +343,7 @@ export default function Page() {
               Psych LTC patient census
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-              Track who is on service, open saved notes, and start a charting encounter on its own screen.
+              Track who is on service, open saved notes, and start a visit recording to generate the chart.
             </p>
           </div>
         </header>
@@ -374,8 +378,8 @@ export default function Page() {
         />
 
         <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-950/50 px-6 py-10 text-sm text-slate-300">
-          Use <span className="font-medium text-slate-100">Start encounter</span> to open the dictation and charting
-          workspace for the selected patient.
+          Use <span className="font-medium text-slate-100">Start encounter</span> to record the visit and generate the
+          chart for the selected patient.
         </div>
       </div>
     </main>

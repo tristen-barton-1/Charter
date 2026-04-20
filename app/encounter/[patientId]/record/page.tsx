@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AlertCircle, Loader2, Square } from "lucide-react";
+import { AlertCircle, Loader2, Pause, Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { chartFromConversation, fetchPatient, transcribeVisitAudio } from "@/lib/backend";
 import type { EncounterInput, PatientRecord } from "@/lib/types";
 import {
   createDefaultAppState,
+  createWorkspaceFromPatient,
   loadPersistedAppState,
   mergeRecordFlowResultIntoState,
   savePersistedAppState,
@@ -53,6 +54,8 @@ export default function RecordVisitPage() {
   const [encounterInput, setEncounterInput] = useState<EncounterInput | null>(null);
   const [micSecureContext, setMicSecureContext] = useState(true);
   const [recorderCapable, setRecorderCapable] = useState(false);
+  const [pauseSupported, setPauseSupported] = useState(false);
+  const [recordingPaused, setRecordingPaused] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -75,6 +78,11 @@ export default function RecordVisitPage() {
   useEffect(() => {
     setMicSecureContext(window.isSecureContext);
     setRecorderCapable(typeof MediaRecorder !== "undefined");
+    setPauseSupported(
+      typeof MediaRecorder !== "undefined" &&
+        typeof MediaRecorder.prototype.pause === "function" &&
+        typeof MediaRecorder.prototype.resume === "function",
+    );
   }, []);
 
   useEffect(() => {
@@ -214,6 +222,7 @@ export default function RecordVisitPage() {
           void runTranscribeAndChart(blob);
         };
         recorder.start(250);
+        setRecordingPaused(false);
         setPhase("recording");
       } catch {
         if (!cancelled) {
@@ -234,17 +243,51 @@ export default function RecordVisitPage() {
     if (!rec || rec.state === "inactive") {
       return;
     }
-    if (rec.state === "recording" && typeof rec.requestData === "function") {
+    if (
+      (rec.state === "recording" || rec.state === "paused") &&
+      typeof rec.requestData === "function"
+    ) {
       rec.requestData();
     }
+    setRecordingPaused(false);
     rec.stop();
+  }
+
+  function togglePauseRecording() {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === "inactive") {
+      return;
+    }
+    try {
+      if (rec.state === "recording") {
+        rec.pause();
+        setRecordingPaused(true);
+      } else if (rec.state === "paused") {
+        rec.resume();
+        setRecordingPaused(false);
+      }
+    } catch {
+      setRecordingPaused(false);
+    }
   }
 
   function handleCancel() {
     abandonRecordingRef.current = true;
     tearDownMedia();
     sessionStorage.removeItem(RECORD_FLOW_CONTEXT_KEY);
-    router.push(`/encounter/${patientId}`);
+    const prev = loadPersistedAppState() ?? createDefaultAppState();
+    const next = {
+      ...prev,
+      encounterPatientId: null,
+      encounterStartedAt: null,
+      viewMode: "dashboard" as const,
+      workspaces:
+        patient && patientId
+          ? { ...prev.workspaces, [patientId]: createWorkspaceFromPatient(patient) }
+          : prev.workspaces,
+    };
+    savePersistedAppState(next);
+    router.push("/");
   }
 
   const title = patient?.name ? `Recording — ${patient.name}` : "Record visit";
@@ -267,26 +310,63 @@ export default function RecordVisitPage() {
             <div className="space-y-6 text-center">
               <div className="flex justify-center">
                 <span className="relative flex h-16 w-16">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/30" />
-                  <span className="relative inline-flex h-16 w-16 items-center justify-center rounded-full bg-red-600/90">
-                    <span className="h-3 w-3 rounded-full bg-white" />
-                  </span>
+                  {recordingPaused ? (
+                    <span className="relative inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-600/90">
+                      <Pause className="h-7 w-7 text-white" />
+                    </span>
+                  ) : (
+                    <>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/30" />
+                      <span className="relative inline-flex h-16 w-16 items-center justify-center rounded-full bg-red-600/90">
+                        <span className="h-3 w-3 rounded-full bg-white" />
+                      </span>
+                    </>
+                  )}
                 </span>
               </div>
-              <p className="text-base font-medium text-red-100">Recording in progress</p>
-              <p className="text-sm text-slate-400">
-                Speak normally. When you stop, audio uploads immediately and Whisper runs—then the chart is generated.
+              <p className={`text-base font-medium ${recordingPaused ? "text-amber-100" : "text-red-100"}`}>
+                {recordingPaused ? "Paused" : "Recording in progress"}
               </p>
-              <Button
-                type="button"
-                size="lg"
-                variant="secondary"
-                className="w-full bg-red-950/50 text-red-100 hover:bg-red-950/70"
-                onClick={stopRecording}
-              >
-                <Square className="h-4 w-4" />
-                <span>End / stop recording</span>
-              </Button>
+              <p className="text-sm text-slate-400">
+                {recordingPaused
+                  ? "Recording is paused. Resume when you are ready to continue, or end to finish and generate the chart."
+                  : pauseSupported
+                    ? "Speak normally. Pause anytime if you need a break. When you stop, audio uploads and Whisper runs—then the chart is generated."
+                    : "Speak normally. When you stop, audio uploads and Whisper runs—then the chart is generated."}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                {pauseSupported ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="w-full border-slate-600 bg-slate-950/50 sm:flex-1"
+                    onClick={togglePauseRecording}
+                  >
+                    {recordingPaused ? (
+                      <>
+                        <Play className="h-4 w-4" />
+                        <span>Resume</span>
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="h-4 w-4" />
+                        <span>Pause</span>
+                      </>
+                    )}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="secondary"
+                  className={`w-full bg-red-950/50 text-red-100 hover:bg-red-950/70 ${pauseSupported ? "sm:flex-1" : ""}`}
+                  onClick={stopRecording}
+                >
+                  <Square className="h-4 w-4" />
+                  <span>End / stop recording</span>
+                </Button>
+              </div>
               <Button type="button" variant="ghost" className="w-full text-slate-400" onClick={handleCancel}>
                 Cancel and return
               </Button>
