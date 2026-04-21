@@ -36,3 +36,18 @@ export function devMemoryListEncounters(patientId: string): SavedChart[] {
 export function devMemoryGetEncounter(patientId: string, encounterId: string): SavedChart | undefined {
   return encountersByPatient.get(patientId)?.find((e) => e.id === encounterId);
 }
+
+export function devMemoryUpdateEncounter(patientId: string, encounterId: string, chart: SavedChart): boolean {
+  const list = encountersByPatient.get(patientId);
+  if (!list) {
+    return false;
+  }
+  const index = list.findIndex((e) => e.id === encounterId);
+  if (index === -1) {
+    return false;
+  }
+  const next = [...list];
+  next[index] = chart;
+  encountersByPatient.set(patientId, next);
+  return true;
+}

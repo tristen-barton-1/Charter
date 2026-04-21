@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -26,7 +25,6 @@ export interface EncounterFormProps {
   onSexChange: (sex: EncounterInput["sex"]) => void;
   onTranscriptChange: (transcript: string) => void;
   onToggleDiagnosis: (diagnosis: DiagnosisCode) => void;
-  onEnablePsychotherapyChange: (enabled: boolean) => void;
   onAiChart: () => void | Promise<void>;
   onPolishTranscript: () => void | Promise<void>;
   onRecordVisit: () => void;
@@ -46,7 +44,6 @@ export default function EncounterForm({
   onSexChange,
   onTranscriptChange,
   onToggleDiagnosis,
-  onEnablePsychotherapyChange,
   onAiChart,
   onPolishTranscript,
   onRecordVisit,
@@ -475,7 +472,7 @@ export default function EncounterForm({
           </div>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-200">Age</span>
             <Input
@@ -508,17 +505,6 @@ export default function EncounterForm({
               <option value="female">Female</option>
               <option value="other">Other</option>
             </Select>
-          </label>
-
-          <label className="space-y-2 sm:col-span-1">
-            <span className="text-sm font-medium text-slate-200">Generate 90833</span>
-            <div className="flex h-11 items-center justify-between rounded-xl border border-slate-700 bg-slate-950/50 px-4 shadow-sm">
-              <span className="text-sm text-slate-200">Psychotherapy note</span>
-              <Switch
-                checked={input.enablePsychotherapy}
-                onCheckedChange={onEnablePsychotherapyChange}
-              />
-            </div>
           </label>
         </div>
 

@@ -13,6 +13,7 @@ import {
   loadPersistedAppState,
   mergeRecordFlowResultIntoState,
   savePersistedAppState,
+  workspaceFromTranscriptDraft,
   type AppState,
 } from "@/lib/charter-persisted-state";
 import { RECORD_FLOW_CONTEXT_KEY, type RecordFlowContext, type RecordFlowResult } from "@/lib/record-flow-storage";
@@ -197,8 +198,34 @@ export default function RecordVisitPage() {
         sessionStorage.removeItem(RECORD_FLOW_CONTEXT_KEY);
         router.push(`/encounter/${p.id}?fromRecord=1`);
       } catch (e) {
+        const prev = loadPersistedAppState() ?? createDefaultAppState();
+        const baseW = prev.workspaces[p.id] ?? createWorkspaceFromPatient(p);
+        const startedAt = prev.encounterStartedAt ?? baseW.startedAt ?? new Date().toISOString();
+        const w = workspaceFromTranscriptDraft(p, input, transcriptText, baseW);
+        const draft = buildSavedChart(p.id, w, startedAt);
+        let savedChart = draft;
+        try {
+          savedChart = await apiCreateEncounter(p.id, draft);
+        } catch {
+        }
+        const afterDraft: AppState = {
+          ...prev,
+          encounterPatientId: null,
+          encounterStartedAt: null,
+          workspaces: {
+            ...prev.workspaces,
+            [p.id]: {
+              ...w,
+              charts: [savedChart, ...w.charts.filter((c) => c.id !== savedChart.id)],
+              startedAt: null,
+            },
+          },
+        };
+        savePersistedAppState(afterDraft);
+        const hint =
+          " Your transcript was saved under this patient’s Saved encounters—you can open it and tap Generate chart to try again.";
         setPhase("error");
-        setErrorMessage(e instanceof Error ? e.message : "Chart generation failed.");
+        setErrorMessage((e instanceof Error ? e.message : "Chart generation failed.") + hint);
       }
     }
 
@@ -433,6 +460,13 @@ export default function RecordVisitPage() {
               <div className="flex flex-col gap-2">
                 <Button type="button" onClick={() => window.location.assign(`/encounter/${patientId}/record`)}>
                   Try again
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => router.push(`/patients/${patientId}/history`)}
+                >
+                  Open saved encounters
                 </Button>
                 <Button type="button" variant="ghost" onClick={handleCancel}>
                   Back to dashboard

@@ -28,12 +28,64 @@ type ChartFromConversationResponse = {
 
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    const message = body && typeof body === "object" && "error" in body ? String(body.error) : response.statusText;
-    throw new Error(message || "Request failed.");
+    const raw = await response.text().catch(() => "");
+    let detail = (response.statusText ?? "").trim();
+    try {
+      const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+      if (parsed && typeof parsed === "object" && parsed !== null && "error" in parsed) {
+        detail = String((parsed as { error: unknown }).error);
+      } else if (raw) {
+        detail = raw.replace(/\s+/g, " ").trim().slice(0, 500);
+      }
+    } catch {
+      if (raw) {
+        detail = raw.replace(/\s+/g, " ").trim().slice(0, 500);
+      }
+    }
+    const status = response.status;
+    const base = detail || "Request failed";
+    throw new Error(status ? `${base} (HTTP ${status})` : base);
   }
 
   return (await response.json()) as T;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableClientError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("http 408") ||
+    m.includes("http 429") ||
+    m.includes("http 502") ||
+    m.includes("http 503") ||
+    m.includes("http 504") ||
+    m.includes("request failed") ||
+    m.includes("failed to fetch") ||
+    m.includes("networkerror") ||
+    m.includes("load failed") ||
+    m.includes("econnreset") ||
+    m.includes("timeout")
+  );
+}
+
+async function runWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastError = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (attempt === maxAttempts || !isRetryableClientError(msg)) {
+        throw e;
+      }
+      await sleep(750 * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 export async function fetchPatient(patientId: string): Promise<PatientRecord> {
@@ -129,14 +181,16 @@ export async function chartFromConversation(payload: {
   transcript: string;
   encounterInput: EncounterInput;
 }): Promise<ChartFromConversationResponse> {
-  const response = await fetch("/api/chart-from-conversation", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return runWithRetry(async () => {
+    const response = await fetch("/api/chart-from-conversation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    return parseJson<ChartFromConversationResponse>(response);
   });
-  return parseJson<ChartFromConversationResponse>(response);
 }
 
 export async function polishTranscriptText(transcript: string): Promise<string> {
@@ -152,15 +206,17 @@ export async function polishTranscriptText(transcript: string): Promise<string> 
 }
 
 export async function transcribeVisitAudio(blob: Blob): Promise<string> {
-  const formData = new FormData();
-  const name = blob.type.includes("mp4") ? "visit.m4a" : "visit.webm";
-  formData.append("file", blob, name);
-  const response = await fetch("/api/transcribe-audio", {
-    method: "POST",
-    body: formData,
+  return runWithRetry(async () => {
+    const formData = new FormData();
+    const name = blob.type.includes("mp4") ? "visit.m4a" : "visit.webm";
+    formData.append("file", blob, name);
+    const response = await fetch("/api/transcribe-audio", {
+      method: "POST",
+      body: formData,
+    });
+    const body = await parseJson<{ text: string }>(response);
+    return typeof body.text === "string" ? body.text : "";
   });
-  const body = await parseJson<{ text: string }>(response);
-  return typeof body.text === "string" ? body.text : "";
 }
 
 export async function createEncounter(patientId: string, encounter: SavedChart): Promise<SavedChart> {
@@ -171,6 +227,21 @@ export async function createEncounter(patientId: string, encounter: SavedChart):
     },
     body: JSON.stringify(encounter),
   });
+  const body = await parseJson<EncounterResponse>(response);
+  return body.encounter;
+}
+
+export async function updateEncounter(patientId: string, encounterId: string, encounter: SavedChart): Promise<SavedChart> {
+  const response = await fetch(
+    `/api/patients/${patientId}/encounters/${encodeURIComponent(encounterId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(encounter),
+    },
+  );
   const body = await parseJson<EncounterResponse>(response);
   return body.encounter;
 }

@@ -6,6 +6,8 @@ import { diagnosisLabels } from "@/lib/diagnoses";
 import { createPsychChartingAgent } from "@/lib/charting-agent";
 import { formatTranscriptForAi } from "@/lib/transcript-server-format";
 
+export const maxDuration = 120;
+
 type Body = {
   patient?: Partial<PatientRecord> | null;
   transcript?: string;

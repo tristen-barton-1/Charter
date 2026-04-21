@@ -180,21 +180,10 @@ export default function EncounterPage() {
       }));
       return;
     }
-    setWorkspace((w) => {
-      const next: Workspace = {
-        ...w,
-        input: { ...w.input, [key]: value } as EncounterInput,
-      };
-      if (key === "enablePsychotherapy" && value === false) {
-        return {
-          ...next,
-          notes: { ...next.notes, psychotherapy: "" },
-          generatedNotes: { ...next.generatedNotes, psychotherapy: "" },
-          dirty: { ...next.dirty, psychotherapy: false },
-        };
-      }
-      return next;
-    });
+    setWorkspace((w) => ({
+      ...w,
+      input: { ...w.input, [key]: value } as EncounterInput,
+    }));
   }
 
   function toggleDiagnosis(diagnosis: EncounterInput["diagnoses"][number]) {
@@ -367,7 +356,6 @@ export default function EncounterPage() {
             onSexChange={(sex) => syncInput("sex", sex)}
             onTranscriptChange={(transcript) => syncInput("transcript", transcript)}
             onToggleDiagnosis={toggleDiagnosis}
-            onEnablePsychotherapyChange={(enabled) => syncInput("enablePsychotherapy", enabled)}
             onAiChart={runAiChartFromConversation}
             onPolishTranscript={runPolishTranscript}
             onRecordVisit={startRecordVisit}

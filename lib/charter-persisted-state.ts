@@ -216,6 +216,48 @@ export function savePersistedAppState(state: AppState): void {
   window.localStorage.setItem(CHARTER_STORAGE_KEY, JSON.stringify(state));
 }
 
+export function workspaceFromTranscriptDraft(
+  patient: PatientRecord,
+  encounterInput: EncounterInput,
+  transcript: string,
+  existing: Workspace | null,
+): Workspace {
+  const blank = emptyNoteOutputs();
+  const base = existing ?? createWorkspaceFromPatient(patient);
+  return {
+    ...base,
+    input: {
+      ...encounterInput,
+      transcript,
+    },
+    parsed: createEmptyParsedEncounter(),
+    notes: blank,
+    generatedNotes: blank,
+    dirty: createDirtyFlags(),
+  };
+}
+
+export function applyChartResultToSavedChart(
+  chart: SavedChart,
+  result: { notes: NoteOutputs; parsed: ParsedEncounter; polishedTranscript?: string },
+): SavedChart {
+  const psychotherapy = chart.input.enablePsychotherapy ? result.notes.psychotherapy : "";
+  const notes: NoteOutputs = { ...result.notes, psychotherapy };
+  const input = result.polishedTranscript
+    ? { ...chart.input, transcript: result.polishedTranscript }
+    : chart.input;
+  const ts = new Date().toISOString();
+  return {
+    ...chart,
+    updatedAt: ts,
+    transcript: input.transcript,
+    input,
+    parsed: result.parsed,
+    notes,
+    generatedNotes: notes,
+  };
+}
+
 export function applyAiChartResult(
   workspace: Workspace,
   result: { notes: NoteOutputs; parsed: ParsedEncounter; polishedTranscript?: string },

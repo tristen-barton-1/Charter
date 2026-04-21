@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { DiagnosisCode, PatientRecord, Sex } from "@/lib/types";
 import { diagnosisLabels, diagnosisOrder, formatList } from "@/lib/diagnoses";
@@ -31,6 +32,7 @@ export interface NewPatientForm {
   sex: Sex;
   room: string;
   diagnoses: DiagnosisCode[];
+  enablePsychotherapy: boolean;
 }
 
 export interface PatientDashboardProps {
@@ -159,8 +161,7 @@ export default function PatientDashboard({
 
   const [mounted, setMounted] = useState(false);
   const [actionsPatientId, setActionsPatientId] = useState<string | null>(null);
-  const isEditModal = showPatientForm && patientFormMode === "edit";
-  const isAddInline = showPatientForm && patientFormMode === "add";
+  const isPatientFormModal = showPatientForm && patientFormMode !== null;
   const actionsPatient = actionsPatientId
     ? patients.find((entry) => entry.id === actionsPatientId) ?? null
     : null;
@@ -172,7 +173,7 @@ export default function PatientDashboard({
   }, []);
 
   useEffect(() => {
-    if ((!isEditModal && !actionsPatientId) || typeof document === "undefined") {
+    if ((!isPatientFormModal && !actionsPatientId) || typeof document === "undefined") {
       return;
     }
     const previousOverflow = document.body.style.overflow;
@@ -180,10 +181,10 @@ export default function PatientDashboard({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isEditModal, actionsPatientId]);
+  }, [isPatientFormModal, actionsPatientId]);
 
   useEffect(() => {
-    if (!isEditModal) {
+    if (!isPatientFormModal) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -193,10 +194,10 @@ export default function PatientDashboard({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isEditModal, onClosePatientForm]);
+  }, [isPatientFormModal, onClosePatientForm]);
 
   useEffect(() => {
-    if (!actionsPatientId || isEditModal) {
+    if (!actionsPatientId || isPatientFormModal) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -206,13 +207,13 @@ export default function PatientDashboard({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [actionsPatientId, isEditModal]);
+  }, [actionsPatientId, isPatientFormModal]);
 
   useEffect(() => {
-    if (isEditModal) {
+    if (isPatientFormModal) {
       setActionsPatientId(null);
     }
-  }, [isEditModal]);
+  }, [isPatientFormModal]);
 
   useEffect(() => {
     if (actionsPatientId && !patients.some((p) => p.id === actionsPatientId)) {
@@ -262,6 +263,17 @@ export default function PatientDashboard({
         </label>
       </div>
 
+      <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-slate-700 bg-slate-950/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-200">90833 psychotherapy note</p>
+          <p className="text-xs text-slate-400">When on, visit charts include a psychotherapy section.</p>
+        </div>
+        <Switch
+          checked={newPatient.enablePsychotherapy}
+          onCheckedChange={(checked) => updateNewPatient("enablePsychotherapy", checked)}
+        />
+      </div>
+
       <div className="mt-4 space-y-2">
         <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Disorders</p>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -309,8 +321,8 @@ export default function PatientDashboard({
     </div>
   );
 
-  const editModal =
-    mounted && isEditModal
+  const patientFormModalPortal =
+    mounted && isPatientFormModal
       ? createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
             <button
@@ -335,7 +347,7 @@ export default function PatientDashboard({
       : null;
 
   const patientActionsModal =
-    mounted && actionsPatient && !isEditModal
+    mounted && actionsPatient && !isPatientFormModal
       ? createPortal(
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-6">
             <button
@@ -559,15 +571,8 @@ export default function PatientDashboard({
           </table>
         </div>
 
-        {editModal}
+        {patientFormModalPortal}
         {patientActionsModal}
-
-        {isAddInline ? (
-          <div className="rounded-2xl border border-slate-700 bg-slate-950/50 p-4">
-            {patientFormTitle}
-            {patientFormFields}
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   );

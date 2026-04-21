@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { EncounterInput, NoteOutputs, ParsedEncounter, SavedChart } from "@/lib/types";
-import { devMemoryGetEncounter } from "@/lib/dev-api-memory";
+import { devMemoryGetEncounter, devMemoryUpdateEncounter } from "@/lib/dev-api-memory";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 function toChart(row: any): SavedChart {
@@ -39,6 +39,67 @@ export async function GET(_request: Request, context: any) {
     .eq("patient_id", patientId)
     .eq("id", encounterId)
     .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
+
+  return NextResponse.json({ encounter: toChart(data) });
+}
+
+export async function PUT(request: Request, context: any) {
+  const { patientId, encounterId } = await context.params;
+  const body = (await request.json().catch(() => null)) as Partial<SavedChart> | null;
+
+  if (!body || typeof body.input !== "object" || typeof body.parsed !== "object" || !body.notes || !body.generatedNotes) {
+    return NextResponse.json({ error: "Invalid encounter payload." }, { status: 400 });
+  }
+
+  const updatedAt = new Date().toISOString();
+  const patch = {
+    updated_at: updatedAt,
+    ended_at: typeof body.endedAt === "string" ? body.endedAt : updatedAt,
+    transcript: typeof body.transcript === "string" ? body.transcript : "",
+    input: body.input,
+    parsed: body.parsed,
+    notes: body.notes,
+    generated_notes: body.generatedNotes,
+  };
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    const existing = devMemoryGetEncounter(patientId, encounterId);
+    if (!existing) {
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
+    }
+    const merged: SavedChart = {
+      ...existing,
+      id: encounterId,
+      patientId,
+      updatedAt,
+      endedAt: typeof body.endedAt === "string" ? body.endedAt : updatedAt,
+      transcript: patch.transcript,
+      input: patch.input as EncounterInput,
+      parsed: patch.parsed as ParsedEncounter,
+      notes: patch.notes as NoteOutputs,
+      generatedNotes: patch.generated_notes as NoteOutputs,
+    };
+    devMemoryUpdateEncounter(patientId, encounterId, merged);
+    return NextResponse.json({ encounter: merged });
+  }
+
+  const { data, error } = await supabase
+    .from("encounters")
+    .update(patch)
+    .eq("id", encounterId)
+    .eq("patient_id", patientId)
+    .select(
+      "id, patient_id, started_at, ended_at, transcript, input, parsed, notes, generated_notes, created_at, updated_at",
+    )
+    .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

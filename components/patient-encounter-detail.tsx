@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import EncounterChartReadonly from "@/components/encounter-chart-readonly";
 import type { PatientRecord, SavedChart } from "@/lib/types";
 import { diagnosisLabels, formatList } from "@/lib/diagnoses";
-import { deleteEncounter, fetchEncounter, fetchPatient } from "@/lib/backend";
+import { applyChartResultToSavedChart } from "@/lib/charter-persisted-state";
+import { chartFromConversation, deleteEncounter, fetchEncounter, fetchPatient, updateEncounter } from "@/lib/backend";
 
 interface PatientEncounterDetailProps {
   patientId: string;
@@ -21,6 +22,14 @@ function formatDisorders(patient: PatientRecord): string {
   return formatList(patient.diagnoses.map((diagnosis) => diagnosisLabels[diagnosis]));
 }
 
+function isTranscriptOnlyDraft(enc: SavedChart): boolean {
+  if (!enc.transcript.trim()) {
+    return false;
+  }
+  const { hpi, mse, plan } = enc.notes;
+  return !hpi.trim() && !mse.trim() && !plan.trim();
+}
+
 export default function PatientEncounterDetail({ patientId, encounterId }: PatientEncounterDetailProps) {
   const router = useRouter();
   const [patient, setPatient] = useState<PatientRecord | null>(null);
@@ -28,6 +37,7 @@ export default function PatientEncounterDetail({ patientId, encounterId }: Patie
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [chartLoading, setChartLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +69,28 @@ export default function PatientEncounterDetail({ patientId, encounterId }: Patie
       cancelled = true;
     };
   }, [patientId, encounterId]);
+
+  async function generateChartFromTranscript() {
+    if (!encounter || !patient) {
+      return;
+    }
+    setError(null);
+    setChartLoading(true);
+    try {
+      const result = await chartFromConversation({
+        patient,
+        transcript: encounter.transcript,
+        encounterInput: encounter.input,
+      });
+      const next = applyChartResultToSavedChart(encounter, result);
+      const saved = await updateEncounter(patientId, encounterId, next);
+      setEncounter(saved);
+    } catch (genError) {
+      setError(genError instanceof Error ? genError.message : "Chart generation failed.");
+    } finally {
+      setChartLoading(false);
+    }
+  }
 
   async function removeEncounter() {
     if (!encounter) {
@@ -134,6 +166,23 @@ export default function PatientEncounterDetail({ patientId, encounterId }: Patie
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {isTranscriptOnlyDraft(encounter) ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={chartLoading || !patient}
+                        onClick={() => void generateChartFromTranscript()}
+                      >
+                        {chartLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Generating chart…</span>
+                          </>
+                        ) : (
+                          <span>Generate chart from transcript</span>
+                        )}
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="outline"
@@ -147,6 +196,13 @@ export default function PatientEncounterDetail({ patientId, encounterId }: Patie
                     </Button>
                   </div>
                 </div>
+
+                {isTranscriptOnlyDraft(encounter) ? (
+                  <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    Transcript is saved; chart sections are empty. Use Generate chart from transcript when the service is
+                    available again.
+                  </div>
+                ) : null}
 
                 <EncounterChartReadonly
                   transcript={encounter.transcript}

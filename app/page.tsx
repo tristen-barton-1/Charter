@@ -50,6 +50,7 @@ export default function Page() {
     sex: "female",
     room: "",
     diagnoses: [],
+    enablePsychotherapy: false,
   });
   const [hydrated, setHydrated] = useState(false);
 
@@ -156,6 +157,7 @@ export default function Page() {
       sex: "female",
       room: "",
       diagnoses: [],
+      enablePsychotherapy: false,
     });
   }
 
@@ -173,6 +175,7 @@ export default function Page() {
       sex: patient.sex,
       room: patient.room,
       diagnoses: [...patient.diagnoses],
+      enablePsychotherapy: patient.enablePsychotherapy,
     });
   }
 
@@ -185,6 +188,7 @@ export default function Page() {
       sex: "female",
       room: "",
       diagnoses: [],
+      enablePsychotherapy: false,
     });
   }
 
@@ -210,6 +214,7 @@ export default function Page() {
       diagnoses: (
         newPatient.diagnoses.length > 0 ? newPatient.diagnoses : ["dementia_behavior"]
       ) as PatientRecord["diagnoses"],
+      enablePsychotherapy: newPatient.enablePsychotherapy,
     };
 
     const nextPatient: PatientRecord = {
@@ -218,7 +223,6 @@ export default function Page() {
       facility: "Long-term care facility",
       transcript:
         "Per staff, no acute concerns reported today. Patient seen for follow-up in the long-term care facility.",
-      enablePsychotherapy: false,
       status: "New patient",
       summary: "Newly added patient record.",
       lastSeen: "Today",
@@ -246,6 +250,7 @@ export default function Page() {
 
       setAppState((prev) => {
         const baseWorkspace = prev.workspaces[savedPatient.id] ?? createWorkspaceFromPatient(savedPatient);
+        const psychotherapy = savedPatient.enablePsychotherapy ? baseWorkspace.notes.psychotherapy : "";
         return {
           ...prev,
           patients: prev.patients.map((patient) => (patient.id === editingPatientId ? savedPatient : patient)),
@@ -260,6 +265,8 @@ export default function Page() {
                 diagnoses: savedPatient.diagnoses,
                 enablePsychotherapy: savedPatient.enablePsychotherapy,
               },
+              notes: { ...baseWorkspace.notes, psychotherapy },
+              generatedNotes: { ...baseWorkspace.generatedNotes, psychotherapy },
               charts: baseWorkspace.charts,
             },
           },
