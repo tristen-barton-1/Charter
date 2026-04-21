@@ -4,14 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AlertCircle, Loader2, Pause, Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { chartFromConversation, fetchPatient, transcribeVisitAudio } from "@/lib/backend";
+import { chartFromConversation, createEncounter as apiCreateEncounter, fetchPatient, transcribeVisitAudio } from "@/lib/backend";
 import type { EncounterInput, PatientRecord } from "@/lib/types";
 import {
+  buildSavedChart,
   createDefaultAppState,
   createWorkspaceFromPatient,
   loadPersistedAppState,
   mergeRecordFlowResultIntoState,
   savePersistedAppState,
+  type AppState,
 } from "@/lib/charter-persisted-state";
 import { RECORD_FLOW_CONTEXT_KEY, type RecordFlowContext, type RecordFlowResult } from "@/lib/record-flow-storage";
 
@@ -169,10 +171,31 @@ export default function RecordVisitPage() {
           parsed: chartResult.parsed,
         };
         const prev = loadPersistedAppState() ?? createDefaultAppState();
-        const next = mergeRecordFlowResultIntoState(prev, payload);
-        savePersistedAppState(next);
+        const merged = mergeRecordFlowResultIntoState(prev, payload);
+        const w = merged.workspaces[p.id];
+        const startedAt = merged.encounterStartedAt ?? w.startedAt ?? new Date().toISOString();
+        const draft = buildSavedChart(p.id, w, startedAt);
+        let savedChart = draft;
+        try {
+          savedChart = await apiCreateEncounter(p.id, draft);
+        } catch {
+        }
+        const finalized: AppState = {
+          ...merged,
+          encounterPatientId: null,
+          encounterStartedAt: null,
+          workspaces: {
+            ...merged.workspaces,
+            [p.id]: {
+              ...w,
+              charts: [savedChart, ...w.charts.filter((c) => c.id !== savedChart.id)],
+              startedAt: null,
+            },
+          },
+        };
+        savePersistedAppState(finalized);
         sessionStorage.removeItem(RECORD_FLOW_CONTEXT_KEY);
-        router.push(`/encounter/${p.id}`);
+        router.push(`/encounter/${p.id}?fromRecord=1`);
       } catch (e) {
         setPhase("error");
         setErrorMessage(e instanceof Error ? e.message : "Chart generation failed.");

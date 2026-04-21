@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Bot } from "lucide-react";
+import EncounterChartReadonly from "@/components/encounter-chart-readonly";
 import EncounterForm from "@/components/encounter-form";
-import NoteOutput from "@/components/note-output";
 import { Button } from "@/components/ui/button";
-import type { EncounterInput, NoteOutputs, PatientRecord, SavedChart } from "@/lib/types";
+import type { EncounterInput, PatientRecord, SavedChart } from "@/lib/types";
 import {
   applyAiChartResult,
   applyPendingEncounterToState,
@@ -63,6 +62,7 @@ export default function EncounterPage() {
 
   const defaultState = useMemo(() => createDefaultAppState(), []);
   const [hydrated, setHydrated] = useState(false);
+  const [reviewMode, setReviewMode] = useState(false);
   const [appState, setAppState] = useState<AppState>(defaultState);
   const [aiChartLoading, setAiChartLoading] = useState(false);
   const [polishLoading, setPolishLoading] = useState(false);
@@ -74,6 +74,9 @@ export default function EncounterPage() {
       return;
     }
     try {
+      const fromRecord =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("fromRecord") === "1";
       const raw = window.localStorage.getItem(CHARTER_STORAGE_KEY);
       let next = raw ? sanitizePersistedState(JSON.parse(raw)) : null;
       if (!next) {
@@ -82,11 +85,21 @@ export default function EncounterPage() {
       const pend = consumePendingEncounter();
       if (pend && pend.patientId === patientId) {
         next = applyPendingEncounterToState(next, pend.patientId, pend.startedAt);
-           } else {
+      } else if (next.encounterPatientId === patientId) {
+        /* keep stored session */
+      } else if (fromRecord) {
+        /* record flow already finalized and saved in storage */
+      } else {
         next = ensureEncounterSessionState(next, patientId);
       }
       savePersistedAppState(next);
       setAppState(next);
+      if (fromRecord) {
+        setReviewMode(true);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("fromRecord");
+        window.history.replaceState(null, "", url.pathname + (url.search || ""));
+      }
     } catch {
       router.replace("/");
     } finally {
@@ -236,22 +249,6 @@ export default function EncounterPage() {
     router.push(`/encounter/${patientId}/record`);
   }
 
-  function resetSection(section: keyof NoteOutputs) {
-    setWorkspace((w) => ({
-      ...w,
-      notes: { ...w.notes, [section]: w.generatedNotes[section] },
-      dirty: { ...w.dirty, [section]: false },
-    }));
-  }
-
-  function editSection(section: keyof NoteOutputs, value: string) {
-    setWorkspace((w) => ({
-      ...w,
-      notes: { ...w.notes, [section]: value },
-      dirty: { ...w.dirty, [section]: true },
-    }));
-  }
-
   function cancelEncounter() {
     const p = appState.patients.find((x) => x.id === patientId);
     if (!p) {
@@ -318,20 +315,49 @@ export default function EncounterPage() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 sm:px-4 lg:px-6">
         <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-700/80 bg-slate-900/60 px-5 py-4 sm:px-6">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Encounter</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              {reviewMode ? "Saved encounter" : "Encounter"}
+            </p>
             <h1 className="text-xl font-semibold text-slate-50 sm:text-2xl">{patient.name}</h1>
+            {reviewMode ? (
+              <p className="mt-1 text-sm text-emerald-400/90">Recorded, charted, and saved to this patient.</p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={cancelEncounter}>
-              Cancel encounter
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => router.push("/")}>
-              Back to dashboard
-            </Button>
+            {reviewMode ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/patients/${patientId}/history`)}
+                >
+                  Saved encounters
+                </Button>
+                <Button type="button" variant="default" size="sm" onClick={() => router.push("/")}>
+                  Back to dashboard
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="ghost" size="sm" onClick={cancelEncounter}>
+                  Cancel encounter
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => router.push("/")}>
+                  Back to dashboard
+                </Button>
+              </>
+            )}
           </div>
         </header>
 
-        <div className="grid gap-4">
+        {reviewMode ? (
+          <EncounterChartReadonly
+            transcript={workspace.input.transcript}
+            input={workspace.input}
+            notes={workspace.notes}
+          />
+        ) : (
           <EncounterForm
             patientName={patient.name}
             input={workspace.input}
@@ -349,70 +375,9 @@ export default function EncounterPage() {
             polishLoading={polishLoading}
             aiChartError={aiChartError}
             onEndEncounter={endEncounter}
+            captureHidden
           />
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="xl:col-span-2">
-              <NoteOutput
-                title="HPI"
-                description="Polished history of present illness with LTC wording, staff summary, symptom review, and medication monitoring language."
-                value={workspace.notes.hpi}
-                generatedValue={workspace.generatedNotes.hpi}
-                placeholder="Run AI chart visit after capturing a transcript — sections stay empty until then."
-                onChange={(value) => editSection("hpi", value)}
-                onReset={() => resetSection("hpi")}
-              />
-            </div>
-
-            <NoteOutput
-              title="MSE"
-              description="Structured mental status exam with the appropriate preset selected from the transcript."
-              value={workspace.notes.mse}
-              generatedValue={workspace.generatedNotes.mse}
-              placeholder="Run AI chart visit after capturing a transcript — sections stay empty until then."
-              onChange={(value) => editSection("mse", value)}
-              onReset={() => resetSection("mse")}
-            />
-
-            <NoteOutput
-              title="Plan of Care"
-              description="Diagnosis-based plan sections with LTC behavioral language and stable medication continuation phrasing."
-              value={workspace.notes.plan}
-              generatedValue={workspace.generatedNotes.plan}
-              placeholder="Run AI chart visit after capturing a transcript — sections stay empty until then."
-              onChange={(value) => editSection("plan", value)}
-              onReset={() => resetSection("plan")}
-            />
-
-            <div className="xl:col-span-2">
-              <NoteOutput
-                title="90833 Psychotherapy Note"
-                description="Optional psychotherapy documentation."
-                value={workspace.input.enablePsychotherapy ? workspace.notes.psychotherapy : ""}
-                generatedValue={workspace.generatedNotes.psychotherapy}
-                placeholder="Enable 90833 above, then run AI chart visit to generate this section."
-                disabled={!workspace.input.enablePsychotherapy}
-                onChange={(value) => editSection("psychotherapy", value)}
-                onReset={() => resetSection("psychotherapy")}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/70 bg-slate-950/85 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:hidden">
-        <div className="mx-auto max-w-6xl">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => void runAiChartFromConversation()}
-            disabled={aiChartLoading || polishLoading}
-            className="h-12 w-full min-w-0 border-cyan-700/60 bg-cyan-950/30 px-2 text-slate-100 hover:bg-cyan-950/45"
-          >
-            <Bot className="h-4 w-4 shrink-0" />
-            <span className="truncate text-sm">{aiChartLoading ? "AI charting…" : "AI chart visit"}</span>
-          </Button>
-        </div>
+        )}
       </div>
     </main>
   );

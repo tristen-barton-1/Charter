@@ -26,7 +26,7 @@ INPUT: (1) PATIENT_CONTEXT_JSON — demographics, diagnosis labels, enablePsycho
 OUTPUT: Exactly ONE JSON object. No markdown fences, no text outside JSON.
 
 Top-level keys (required):
-1) "notes" — four string fields. Each field must follow the FORMAT CONTRACTS below. Third person, chart-ready. Use the patient’s actual age, sex, and diagnosis labels from PATIENT_CONTEXT_JSON.
+1) "notes" — object with exactly these four string keys (never omit a key): "hpi", "mse", "plan", "psychotherapy". Use "" for psychotherapy when PATIENT_CONTEXT_JSON.enablePsychotherapy is false. Each field must follow the FORMAT CONTRACTS below. Third person, chart-ready. Use the patient’s actual age, sex, and diagnosis labels from PATIENT_CONTEXT_JSON.
 
 2) "parsed" — structured metadata:
    - "staffSummary": optional short string

@@ -34,6 +34,7 @@ export interface EncounterFormProps {
   polishLoading?: boolean;
   aiChartError?: string | null;
   onEndEncounter: () => void;
+  captureHidden?: boolean;
 }
 
 export default function EncounterForm({
@@ -53,6 +54,7 @@ export default function EncounterForm({
   polishLoading = false,
   aiChartError = null,
   onEndEncounter,
+  captureHidden = false,
 }: EncounterFormProps) {
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef(input.transcript);
@@ -122,6 +124,20 @@ export default function EncounterForm({
   }
 
   useEffect(() => {
+    if (captureHidden) {
+      micSessionAliveRef.current = false;
+      restartGenRef.current += 1;
+      userPausedMicRef.current = false;
+      setMicPausedByUser(false);
+      setMicStallNotice(null);
+      setSpeechError(null);
+      if (restartTimerRef.current) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
+      stopDictationInternal(false);
+      return;
+    }
     if (encounterActive) {
       micSessionAliveRef.current = true;
       giveUpAutoMicRef.current = false;
@@ -163,7 +179,7 @@ export default function EncounterForm({
     stopDictationInternal(false);
     return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [encounterActive, startSignal]);
+  }, [encounterActive, startSignal, captureHidden]);
 
   function buildRecognitionTranscript(event: any): string {
     const results = Array.from(event.results as ArrayLike<any>);
@@ -378,7 +394,7 @@ export default function EncounterForm({
   }
 
   const transcriptBusy = aiChartLoading || polishLoading;
-  const showLiveBanner = encounterActive && dictationSupported && !speechError;
+  const showLiveBanner = !captureHidden && encounterActive && dictationSupported && !speechError;
   const recordingSessionHot = showLiveBanner && !micPausedByUser;
   const userPausedStrip = showLiveBanner && micPausedByUser;
 
@@ -394,7 +410,9 @@ export default function EncounterForm({
           <div>
             <CardTitle>Fast LTC psych follow-up note capture</CardTitle>
             <CardDescription className="mt-1 max-w-2xl text-slate-300">
-              Use HTTPS or localhost for the microphone. Open Record visit for a full-screen capture (MediaRecorder → OpenAI transcription → chart). Polish text and AI chart visit refine the transcript. Dictate adds optional live browser captions.
+              {captureHidden
+                ? "Visit capture uses Record visit from the dashboard. Adjust encounter metadata below, then end and save when finished."
+                : "Use HTTPS or localhost for the microphone. Open Record visit for a full-screen capture (MediaRecorder → OpenAI transcription → chart). Polish text and AI chart visit refine the transcript. Dictate adds optional live browser captions."}
             </CardDescription>
           </div>
           {encounterActive ? (
@@ -406,7 +424,7 @@ export default function EncounterForm({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {encounterActive ? (
+        {encounterActive && !captureHidden ? (
           <div
             className={cn(
               "rounded-2xl border px-4 py-3 sm:px-5",
@@ -527,70 +545,77 @@ export default function EncounterForm({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <span className="text-sm font-medium text-slate-200">Visit transcript</span>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">
-                Record visit opens a dedicated page: capture audio, transcribe, and build the chart automatically. Use Dictate here for quick draft text, or polish then AI chart below.
-              </p>
+        {captureHidden ? null : (
+          <div className="space-y-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="text-sm font-medium text-slate-200">Visit transcript</span>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">
+                  Record visit opens a dedicated page: capture audio, transcribe, and build the chart automatically. Use Dictate here for quick draft text, or polish then AI chart below.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={!micPausedByUser ? "secondary" : "outline"}
+                size="sm"
+                onClick={toggleDictation}
+                disabled={!dictationSupported || !encounterActive}
+              >
+                {!micPausedByUser ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                <span>{!micPausedByUser ? "Pause mic" : "Dictate"}</span>
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant={!micPausedByUser ? "secondary" : "outline"}
-              size="sm"
-              onClick={toggleDictation}
-              disabled={!dictationSupported || !encounterActive}
-            >
-              {!micPausedByUser ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              <span>{!micPausedByUser ? "Pause mic" : "Dictate"}</span>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRecordVisit}
+                disabled={!encounterActive || transcriptBusy}
+                className="border-slate-600"
+              >
+                <AudioLines className="h-4 w-4" />
+                <span>Record visit</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void onPolishTranscript()}
+                disabled={!encounterActive || !input.transcript.trim() || transcriptBusy}
+                className="border-slate-600"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>{polishLoading ? "Polishing…" : "Polish text"}</span>
+              </Button>
+            </div>
+            <Textarea
+              ref={textareaRef}
+              value={input.transcript}
+              onChange={(event) => onTranscriptChange(event.currentTarget.value)}
+              className={cn(
+                "min-h-[260px] resize-y text-[15px] leading-7",
+                recordingSessionHot ? "border-red-500/40 bg-slate-950/80" : "",
+              )}
+              placeholder="After Record visit you return here with transcript and chart sections filled. You can also Dictate, paste, or type, then Polish or AI chart."
+              spellCheck={false}
+            />
+            {aiChartError ? <p className="text-sm leading-6 text-red-400">{aiChartError}</p> : null}
+            {recordingSessionHot && isListening ? (
+              <p className="text-xs text-sky-300">Heard audio — updating transcript.</p>
+            ) : null}
+            {recordingSessionHot && !isListening ? (
+              <p className="text-xs text-slate-400">Reconnecting microphone (waits longer after errors)…</p>
+            ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onRecordVisit}
-              disabled={!encounterActive || transcriptBusy}
-              className="border-slate-600"
-            >
-              <AudioLines className="h-4 w-4" />
-              <span>Record visit</span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void onPolishTranscript()}
-              disabled={!encounterActive || !input.transcript.trim() || transcriptBusy}
-              className="border-slate-600"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>{polishLoading ? "Polishing…" : "Polish text"}</span>
-            </Button>
-          </div>
-          <Textarea
-            ref={textareaRef}
-            value={input.transcript}
-            onChange={(event) => onTranscriptChange(event.currentTarget.value)}
-            className={cn(
-              "min-h-[260px] resize-y text-[15px] leading-7",
-              recordingSessionHot ? "border-red-500/40 bg-slate-950/80" : "",
-            )}
-            placeholder="After Record visit you return here with transcript and chart sections filled. You can also Dictate, paste, or type, then Polish or AI chart."
-            spellCheck={false}
-          />
-          {aiChartError ? <p className="text-sm leading-6 text-red-400">{aiChartError}</p> : null}
-          {recordingSessionHot && isListening ? (
-            <p className="text-xs text-sky-300">Heard audio — updating transcript.</p>
-          ) : null}
-          {recordingSessionHot && !isListening ? (
-            <p className="text-xs text-slate-400">Reconnecting microphone (waits longer after errors)…</p>
-          ) : null}
-        </div>
+        )}
       </CardContent>
-      <CardFooter className="hidden flex-wrap gap-3 border-t border-slate-700/80 bg-slate-950/40 px-5 py-4 sm:flex sm:px-6">
+      <CardFooter
+        className={cn(
+          "hidden flex-wrap gap-3 border-t border-slate-700/80 bg-slate-950/40 px-5 py-4 sm:px-6",
+          !captureHidden && "sm:flex",
+        )}
+      >
         <Button
           type="button"
           variant="outline"

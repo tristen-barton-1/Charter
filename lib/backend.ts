@@ -106,6 +106,24 @@ export async function fetchPatientEncounters(patientId: string): Promise<SavedCh
   return body.encounters;
 }
 
+export async function fetchEncounter(patientId: string, encounterId: string): Promise<SavedChart | null> {
+  const response = await fetch(
+    `/api/patients/${patientId}/encounters/${encodeURIComponent(encounterId)}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  const body = await parseJson<EncounterResponse>(response);
+  return body.encounter;
+}
+
 export async function chartFromConversation(payload: {
   patient: PatientRecord;
   transcript: string;

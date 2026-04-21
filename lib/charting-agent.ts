@@ -2,36 +2,41 @@ import { Agent } from "@openai/agents";
 import { z } from "zod";
 import { getChartFromConversationSystemPrompt } from "@/lib/chart-conversation-fewshot";
 
-const parsedFlagsSchema = z
-  .object({
-    anxiety: z.boolean().optional(),
-    depression: z.boolean().optional(),
-    sleepPoor: z.boolean().optional(),
-    sleepStable: z.boolean().optional(),
-    appetiteGood: z.boolean().optional(),
-    medCompliant: z.boolean().optional(),
-    paranoia: z.boolean().optional(),
-    delusions: z.boolean().optional(),
-    agitation: z.boolean().optional(),
-    pacing: z.boolean().optional(),
-    wandering: z.boolean().optional(),
-    notRedirectable: z.boolean().optional(),
-    confused: z.boolean().optional(),
-    minimalSpeech: z.boolean().optional(),
-    calm: z.boolean().optional(),
-    cooperative: z.boolean().optional(),
-  })
-  .optional();
+const nullableFlag = z.boolean().nullable();
+
+const parsedFlagsSchema = z.object({
+  anxiety: nullableFlag,
+  depression: nullableFlag,
+  sleepPoor: nullableFlag,
+  sleepStable: nullableFlag,
+  appetiteGood: nullableFlag,
+  medCompliant: nullableFlag,
+  paranoia: nullableFlag,
+  delusions: nullableFlag,
+  agitation: nullableFlag,
+  pacing: nullableFlag,
+  wandering: nullableFlag,
+  notRedirectable: nullableFlag,
+  confused: nullableFlag,
+  minimalSpeech: nullableFlag,
+  calm: nullableFlag,
+  cooperative: nullableFlag,
+});
+
+const chartNoteString = z.preprocess(
+  (val) => (typeof val === "string" ? val : ""),
+  z.string(),
+);
 
 export const chartFromConversationOutputSchema = z.object({
   notes: z.object({
-    hpi: z.string(),
-    mse: z.string(),
-    plan: z.string(),
-    psychotherapy: z.string(),
+    hpi: chartNoteString,
+    mse: chartNoteString,
+    plan: chartNoteString,
+    psychotherapy: chartNoteString,
   }),
   parsed: z.object({
-    staffSummary: z.string().optional(),
+    staffSummary: z.string().nullable(),
     denialMode: z.enum(["none", "short", "full"]),
     msePreset: z.enum(["standard", "dementia", "psychosis"]),
     flags: parsedFlagsSchema,

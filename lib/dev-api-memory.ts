@@ -32,3 +32,7 @@ export function devMemoryAppendEncounter(patientId: string, chart: SavedChart): 
 export function devMemoryListEncounters(patientId: string): SavedChart[] {
   return [...(encountersByPatient.get(patientId) ?? [])];
 }
+
+export function devMemoryGetEncounter(patientId: string, encounterId: string): SavedChart | undefined {
+  return encountersByPatient.get(patientId)?.find((e) => e.id === encounterId);
+}
