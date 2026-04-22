@@ -20,6 +20,11 @@ import {
   type AppState,
   type Workspace,
 } from "@/lib/charter-persisted-state";
+import {
+  RECORD_FLOW_CONTEXT_KEY,
+  type ChartTranscriptSource,
+  type RecordFlowContext,
+} from "@/lib/record-flow-storage";
 
 const EMPTY_CENSUS_PATIENT: PatientRecord = {
   id: "__empty__",
@@ -112,14 +117,30 @@ export default function Page() {
 
   const { patients, activePatientId, encounterPatientId, workspaces } = appState;
 
-  function startEncounter(patientId: string) {
+  function pushRecordVisitFlow(patientId: string, chartSource: ChartTranscriptSource) {
     const startedAt = new Date().toISOString();
+    if (typeof window !== "undefined") {
+      const patient = patients.find((p) => p.id === patientId);
+      if (patient) {
+        const w = workspaces[patientId] ?? createWorkspaceFromPatient(patient);
+        const ctx: RecordFlowContext = { encounterInput: w.input, chartSource };
+        sessionStorage.setItem(RECORD_FLOW_CONTEXT_KEY, JSON.stringify(ctx));
+      }
+    }
     setAppState((prev) => {
       const next = applyPendingEncounterToState(prev, patientId, startedAt);
       savePersistedAppState(next);
       return next;
     });
     router.push(`/encounter/${patientId}/record`);
+  }
+
+  function startEncounter(patientId: string) {
+    pushRecordVisitFlow(patientId, "visit_conversation");
+  }
+
+  function dictateEncounter(patientId: string) {
+    pushRecordVisitFlow(patientId, "clinician_dictation");
   }
 
   function cancelEncounter(patientId: string) {
@@ -363,6 +384,7 @@ export default function Page() {
           sortKey={sortKey}
           onSelectPatient={selectPatient}
           onStartEncounter={startEncounter}
+          onDictateEncounter={dictateEncounter}
           onCancelEncounter={cancelEncounter}
           onViewSavedNotes={viewSavedNotes}
           onSearchChange={setSearchQuery}

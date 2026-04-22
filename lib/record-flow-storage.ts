@@ -4,8 +4,11 @@ export const RECORD_FLOW_CONTEXT_KEY = "charter-record-flow-context";
 export const RECORD_FLOW_RESULT_KEY = "charter-record-flow-result";
 export const RECORD_FLOW_RESUME_KEY = "charter-resume-encounter";
 
+export type ChartTranscriptSource = "visit_conversation" | "clinician_dictation";
+
 export type RecordFlowContext = {
   encounterInput: EncounterInput;
+  chartSource?: ChartTranscriptSource;
 };
 
 export type RecordFlowResult = {

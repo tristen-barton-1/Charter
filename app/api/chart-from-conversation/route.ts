@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { run } from "@openai/agents";
 import type { DiagnosisCode, EncounterInput, PatientRecord } from "@/lib/types";
+import type { ChartTranscriptSource } from "@/lib/record-flow-storage";
 import { normalizeAiChartPayload } from "@/lib/ai-chart-response";
 import { diagnosisLabels } from "@/lib/diagnoses";
 import { createPsychChartingAgent } from "@/lib/charting-agent";
@@ -12,7 +13,12 @@ type Body = {
   patient?: Partial<PatientRecord> | null;
   transcript?: string;
   encounterInput?: EncounterInput | null;
+  chartSource?: ChartTranscriptSource | string | null;
 };
+
+function normalizeChartSource(raw: unknown): ChartTranscriptSource {
+  return raw === "clinician_dictation" ? "clinician_dictation" : "visit_conversation";
+}
 
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -26,6 +32,7 @@ export async function POST(request: Request) {
   const rawTranscript = typeof body?.transcript === "string" ? body.transcript : "";
   const patient = body?.patient && typeof body.patient === "object" ? body.patient : null;
   const encounterInput = body?.encounterInput && typeof body.encounterInput === "object" ? body.encounterInput : null;
+  const chartSource = normalizeChartSource(body?.chartSource);
 
   if (!patient || typeof patient.name !== "string") {
     return NextResponse.json({ error: "Invalid request: patient required." }, { status: 400 });
@@ -61,9 +68,10 @@ export async function POST(request: Request) {
     ),
   };
 
-  const userContent = `PATIENT_CONTEXT_JSON:\n${JSON.stringify(patientPayload, null, 2)}\n\nVISIT_TRANSCRIPT:\n${transcriptForChart.trim() || "(empty)"}`;
+  const transcriptLabel = chartSource === "clinician_dictation" ? "CLINICIAN_DICTATION" : "VISIT_TRANSCRIPT";
+  const userContent = `PATIENT_CONTEXT_JSON:\n${JSON.stringify(patientPayload, null, 2)}\n\n${transcriptLabel}:\n${transcriptForChart.trim() || "(empty)"}`;
 
-  const chartingAgent = createPsychChartingAgent(model);
+  const chartingAgent = createPsychChartingAgent(model, chartSource);
 
   let finalOutput: unknown;
   try {

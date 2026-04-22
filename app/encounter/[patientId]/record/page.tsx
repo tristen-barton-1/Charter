@@ -16,7 +16,12 @@ import {
   workspaceFromTranscriptDraft,
   type AppState,
 } from "@/lib/charter-persisted-state";
-import { RECORD_FLOW_CONTEXT_KEY, type RecordFlowContext, type RecordFlowResult } from "@/lib/record-flow-storage";
+import {
+  RECORD_FLOW_CONTEXT_KEY,
+  type ChartTranscriptSource,
+  type RecordFlowContext,
+  type RecordFlowResult,
+} from "@/lib/record-flow-storage";
 
 type Phase = "loading" | "preparing" | "recording" | "transcribing" | "charting" | "error";
 
@@ -40,7 +45,9 @@ function readRecordContext(): RecordFlowContext | null {
     if (!data.encounterInput || typeof data.encounterInput !== "object") {
       return null;
     }
-    return data;
+    const chartSource: ChartTranscriptSource =
+      data.chartSource === "clinician_dictation" ? "clinician_dictation" : "visit_conversation";
+    return { encounterInput: data.encounterInput, chartSource };
   } catch {
     return null;
   }
@@ -55,6 +62,7 @@ export default function RecordVisitPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   const [encounterInput, setEncounterInput] = useState<EncounterInput | null>(null);
+  const [chartSource, setChartSource] = useState<ChartTranscriptSource>("visit_conversation");
   const [micSecureContext, setMicSecureContext] = useState(true);
   const [recorderCapable, setRecorderCapable] = useState(false);
   const [pauseSupported, setPauseSupported] = useState(false);
@@ -114,6 +122,7 @@ export default function RecordVisitPage() {
           };
         setPatient(p);
         setEncounterInput(input);
+        setChartSource(ctx?.chartSource ?? "visit_conversation");
       } catch (e) {
         if (!cancelled) {
           setPhase("error");
@@ -161,6 +170,7 @@ export default function RecordVisitPage() {
           patient: p,
           transcript: transcriptText,
           encounterInput: input,
+          chartSource,
         });
         const payload: RecordFlowResult = {
           patientId: p.id,
@@ -286,7 +296,7 @@ export default function RecordVisitPage() {
       cancelled = true;
       tearDownMedia();
     };
-  }, [patient, encounterInput, micSecureContext, recorderCapable, tearDownMedia, router]);
+  }, [patient, encounterInput, chartSource, micSecureContext, recorderCapable, tearDownMedia, router]);
 
   function stopRecording() {
     const rec = mediaRecorderRef.current;
@@ -340,7 +350,14 @@ export default function RecordVisitPage() {
     router.push("/");
   }
 
-  const title = patient?.name ? `Recording — ${patient.name}` : "Record visit";
+  const isDictation = chartSource === "clinician_dictation";
+  const title = patient?.name
+    ? isDictation
+      ? `Dictating — ${patient.name}`
+      : `Recording — ${patient.name}`
+    : isDictation
+      ? "Dictate visit"
+      : "Record visit";
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
@@ -375,14 +392,20 @@ export default function RecordVisitPage() {
                 </span>
               </div>
               <p className={`text-base font-medium ${recordingPaused ? "text-amber-100" : "text-red-100"}`}>
-                {recordingPaused ? "Paused" : "Recording in progress"}
+                {recordingPaused ? "Paused" : isDictation ? "Dictation in progress" : "Recording in progress"}
               </p>
               <p className="text-sm text-slate-400">
                 {recordingPaused
-                  ? "Recording is paused. Resume when you are ready to continue, or end to finish and generate the chart."
-                  : pauseSupported
-                    ? "Speak normally. Pause anytime if you need a break. When you stop, audio uploads and Whisper runs—then the chart is generated."
-                    : "Speak normally. When you stop, audio uploads and Whisper runs—then the chart is generated."}
+                  ? isDictation
+                    ? "Paused. Resume to keep dictating, or end to transcribe and generate the chart."
+                    : "Recording is paused. Resume when you are ready to continue, or end to finish and generate the chart."
+                  : isDictation
+                    ? pauseSupported
+                      ? "Describe the visit in your own words (e.g. how the patient presented, what you discussed). Pause anytime. When you stop, we transcribe and build the same chart format as a live-recorded visit."
+                      : "Describe the visit in your own words. When you stop, we transcribe and build the same chart format as a live-recorded visit."
+                    : pauseSupported
+                      ? "Speak normally. Pause anytime if you need a break. When you stop, audio uploads and Whisper runs—then the chart is generated."
+                      : "Speak normally. When you stop, audio uploads and Whisper runs—then the chart is generated."}
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
                 {pauseSupported ? (
@@ -426,9 +449,13 @@ export default function RecordVisitPage() {
           {phase === "transcribing" ? (
             <div className="flex flex-col items-center gap-4 py-8 text-center">
               <Loader2 className="h-12 w-12 animate-spin text-cyan-400" />
-              <p className="text-lg font-medium text-slate-100">Generating transcript</p>
+              <p className="text-lg font-medium text-slate-100">
+                {isDictation ? "Transcribing dictation" : "Generating transcript"}
+              </p>
               <p className="text-sm text-slate-400">
-                Audio was uploaded as soon as you stopped; OpenAI is transcribing. This usually takes a few seconds.
+                {isDictation
+                  ? "Your audio was sent for transcription. This usually takes a few seconds."
+                  : "Audio was uploaded as soon as you stopped; OpenAI is transcribing. This usually takes a few seconds."}
               </p>
             </div>
           ) : null}
@@ -438,7 +465,9 @@ export default function RecordVisitPage() {
               <Loader2 className="h-12 w-12 animate-spin text-emerald-400" />
               <p className="text-lg font-medium text-slate-100">Generating chart</p>
               <p className="text-sm text-slate-400">
-                Building HPI, MSE, plan of care, and psychotherapy sections from the transcript.
+                {isDictation
+                  ? "Building HPI, MSE, plan of care, and psychotherapy sections from your dictation."
+                  : "Building HPI, MSE, plan of care, and psychotherapy sections from the transcript."}
               </p>
             </div>
           ) : null}

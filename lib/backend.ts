@@ -1,4 +1,5 @@
 import type { EncounterInput, NoteOutputs, ParsedEncounter, PatientRecord, SavedChart } from "@/lib/types";
+import type { ChartTranscriptSource } from "@/lib/record-flow-storage";
 
 type PatientsResponse = {
   patients: PatientRecord[];
@@ -180,6 +181,7 @@ export async function chartFromConversation(payload: {
   patient: PatientRecord;
   transcript: string;
   encounterInput: EncounterInput;
+  chartSource?: ChartTranscriptSource;
 }): Promise<ChartFromConversationResponse> {
   return runWithRetry(async () => {
     const response = await fetch("/api/chart-from-conversation", {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Mic, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { AudioLines, FileText, Mic, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ export interface PatientDashboardProps {
   onSortChange: (value: PatientSortKey) => void;
   onSelectPatient: (patientId: string) => void;
   onStartEncounter: (patientId: string) => void;
+  onDictateEncounter: (patientId: string) => void;
   onCancelEncounter: (patientId: string) => void;
   onViewSavedNotes: (patientId: string) => void;
   onEditPatient: (patientId: string) => void;
@@ -101,6 +102,7 @@ export default function PatientDashboard({
   onSortChange,
   onSelectPatient,
   onStartEncounter,
+  onDictateEncounter,
   onCancelEncounter,
   onViewSavedNotes,
   onEditPatient,
@@ -454,6 +456,20 @@ export default function PatientDashboard({
                     {actionsEncounterActive ? <X className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     <span>{actionsEncounterActive ? "Cancel encounter" : "Start encounter"}</span>
                   </Button>
+                  {!actionsEncounterActive ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 justify-center gap-2 rounded-xl border-slate-600 bg-slate-950/50"
+                      onClick={() => {
+                        setActionsPatientId(null);
+                        onDictateEncounter(actionsPatient.id);
+                      }}
+                    >
+                      <AudioLines className="h-4 w-4" />
+                      <span>Dictate encounter</span>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>

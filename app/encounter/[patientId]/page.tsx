@@ -233,7 +233,10 @@ export default function EncounterPage() {
   function startRecordVisit() {
     sessionStorage.setItem(
       RECORD_FLOW_CONTEXT_KEY,
-      JSON.stringify({ encounterInput: workspace.input } satisfies RecordFlowContext),
+      JSON.stringify({
+        encounterInput: workspace.input,
+        chartSource: "visit_conversation",
+      } satisfies RecordFlowContext),
     );
     router.push(`/encounter/${patientId}/record`);
   }

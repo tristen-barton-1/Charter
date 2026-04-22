@@ -1,6 +1,7 @@
 import { Agent } from "@openai/agents";
 import { z } from "zod";
 import { getChartFromConversationSystemPrompt } from "@/lib/chart-conversation-fewshot";
+import type { ChartTranscriptSource } from "@/lib/record-flow-storage";
 
 const nullableFlag = z.boolean().nullable();
 
@@ -45,10 +46,10 @@ export const chartFromConversationOutputSchema = z.object({
 
 export type ChartFromConversationAgentOutput = z.infer<typeof chartFromConversationOutputSchema>;
 
-export function createPsychChartingAgent(model: string) {
+export function createPsychChartingAgent(model: string, chartSource: ChartTranscriptSource = "visit_conversation") {
   return new Agent({
     name: "Psych LTC charting",
-    instructions: getChartFromConversationSystemPrompt(),
+    instructions: getChartFromConversationSystemPrompt(chartSource),
     model,
     modelSettings: { temperature: 0.25 },
     outputType: chartFromConversationOutputSchema,

@@ -17,11 +17,17 @@ export function getAuthorVoiceSection(): string {
   return DEFAULT_AUTHOR_VOICE_BLOCK;
 }
 
-export function getChartFromConversationSystemPrompt(): string {
+export function getChartFromConversationSystemPrompt(
+  source: "visit_conversation" | "clinician_dictation" = "visit_conversation",
+): string {
   const authorVoice = getAuthorVoiceSection();
+  const transcriptInputLine =
+    source === "clinician_dictation"
+      ? `(2) CLINICIAN_DICTATION — single-speaker audio: the psychiatrist dictating a retrospective account of the visit (how the encounter went), not a live patient interview. The text is usually narrative (e.g. "Patient was awake and…", "Staff reported…") rather than Q&A dialogue. Treat it as the clinician's summary of what was observed and discussed; build HPI, MSE, and plan from that account. Do not invent quoted patient lines unless the dictation clearly includes them.`
+      : `(2) VISIT_TRANSCRIPT — dialogue (may include staff collateral).`;
   return `You are a medical documentation assistant for psychiatry follow-up visits in US long-term care (LTC).
 
-INPUT: (1) PATIENT_CONTEXT_JSON — demographics, diagnosis labels, enablePsychotherapy flag. (2) VISIT_TRANSCRIPT — dialogue (may include staff collateral).
+INPUT: (1) PATIENT_CONTEXT_JSON — demographics, diagnosis labels, enablePsychotherapy flag. ${transcriptInputLine}
 
 OUTPUT: Exactly ONE JSON object. No markdown fences, no text outside JSON.
 
