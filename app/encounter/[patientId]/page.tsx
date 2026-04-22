@@ -291,7 +291,7 @@ export default function EncounterPage() {
 
   if (!hydrated || !patientId || patient.id === "__empty__") {
     return (
-      <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
+      <main className="min-h-screen min-h-dvh bg-slate-950 px-[max(1rem,env(safe-area-inset-left))] py-10 pr-[max(1rem,env(safe-area-inset-right))] pt-[max(2.5rem,env(safe-area-inset-top))] text-slate-100">
         <p className="text-sm text-slate-400">Loading encounter…</p>
       </main>
     );
@@ -300,9 +300,9 @@ export default function EncounterPage() {
   const startSignal = appState.startSignal;
 
   return (
-    <main className="relative min-h-screen pb-28 pt-4 sm:pb-10 sm:pt-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 sm:px-4 lg:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-700/80 bg-slate-900/60 px-5 py-4 sm:px-6">
+    <main className="relative min-h-screen min-h-dvh pb-[max(7rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:pb-10 sm:pt-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))] lg:pl-[max(1.5rem,env(safe-area-inset-left))] lg:pr-[max(1.5rem,env(safe-area-inset-right))]">
+        <header className="flex flex-col gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/60 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:rounded-3xl sm:px-6">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               {reviewMode ? "Saved encounter" : "Encounter"}

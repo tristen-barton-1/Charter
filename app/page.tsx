@@ -342,11 +342,11 @@ export default function Page() {
   }
 
   return (
-    <main className="relative min-h-screen pb-28 pt-4 sm:pb-10 sm:pt-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 sm:px-4 lg:px-6">
-        <header className="glass-panel rounded-3xl border border-slate-700/80 px-5 py-5 shadow-soft sm:px-6">
+    <main className="relative min-h-screen min-h-dvh pb-[max(7rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:pb-10 sm:pt-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))] lg:pl-[max(1.5rem,env(safe-area-inset-left))] lg:pr-[max(1.5rem,env(safe-area-inset-right))]">
+        <header className="glass-panel rounded-2xl border border-slate-700/80 px-4 py-4 shadow-soft sm:rounded-3xl sm:px-6 sm:py-5">
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-50 sm:text-4xl">
               Psych LTC patient census
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
@@ -384,7 +384,7 @@ export default function Page() {
           onSavePatient={savePatient}
         />
 
-        <div className="rounded-3xl border border-dashed border-slate-700 bg-slate-950/50 px-6 py-10 text-sm text-slate-300">
+        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 px-4 py-8 text-sm text-slate-300 sm:rounded-3xl sm:px-6 sm:py-10">
           Use <span className="font-medium text-slate-100">Start encounter</span> to record the visit and generate the
           chart for the selected patient.
         </div>

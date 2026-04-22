@@ -30,6 +30,7 @@ html {
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--font-manrope), "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
   background:
     radial-gradient(circle at top left, rgba(45, 212, 191, 0.12), transparent 34%),

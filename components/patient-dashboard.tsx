@@ -221,6 +221,15 @@ export default function PatientDashboard({
     }
   }, [patients, actionsPatientId]);
 
+  function handlePatientActivate(patientId: string) {
+    const selectionBlocked = Boolean(encounterActivePatientId && encounterActivePatientId !== patientId);
+    if (selectionBlocked) {
+      return;
+    }
+    onSelectPatient(patientId);
+    setActionsPatientId(patientId);
+  }
+
   const patientFormFields = (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -371,8 +380,8 @@ export default function PatientDashboard({
                       {actionsPatient.name}
                     </p>
                     <p className="text-sm text-slate-400">
-                      Room {actionsPatient.room} · {actionsPatient.age} / {actionsPatient.sex ?? "other"} ·{" "}
-                      {actionsPatient.encounterCount ?? 0} encounters
+                      Room {actionsPatient.room} · {actionsPatient.age} / {actionsPatient.sex ?? "other"} · Last seen{" "}
+                      {actionsPatient.lastSeen?.trim() ? actionsPatient.lastSeen : "—"}
                     </p>
                   </div>
                   <Button
@@ -455,15 +464,15 @@ export default function PatientDashboard({
 
   return (
     <Card className="overflow-hidden border-slate-700/80 bg-slate-900/70 text-slate-100">
-      <CardHeader className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>Patient dashboard</CardTitle>
+      <CardHeader className="space-y-3 px-4 pt-4 sm:px-6 sm:pt-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <CardTitle className="text-lg sm:text-2xl">Patient dashboard</CardTitle>
             <CardDescription className="max-w-2xl text-slate-300">
-              Search and sort the census; click a patient to chart, review notes, or edit details.
+              Search and sort the census; tap a patient to chart, review notes, or edit details.
             </CardDescription>
           </div>
-          <Button type="button" size="sm" onClick={onTogglePatientForm}>
+          <Button type="button" size="sm" className="h-10 w-full shrink-0 sm:h-9 sm:w-auto" onClick={onTogglePatientForm}>
             <Plus className="h-4 w-4" />
             <span>Add Patient</span>
           </Button>
@@ -493,36 +502,80 @@ export default function PatientDashboard({
               <option value="age-desc">Age high-low</option>
               <option value="room-asc">Room A-Z</option>
               <option value="room-desc">Room Z-A</option>
-              <option value="encounters-desc">Most encounters</option>
-              <option value="encounters-asc">Fewest encounters</option>
+              <option value="encounters-desc">Most visits</option>
+              <option value="encounters-asc">Fewest visits</option>
             </Select>
           </label>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-3 text-sm text-slate-400">
+      <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
+        <div className="flex flex-col gap-1 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <span>
             Showing {filteredPatients.length} of {patients.length} patients
           </span>
-          <span className="text-right">Tap a row for actions.</span>
+          <span className="sm:text-right">Tap a patient for actions.</span>
         </div>
 
-        <div className="min-w-0 rounded-2xl border border-slate-700 bg-slate-950/50">
+        {filteredPatients.length === 0 ? (
+          <div className="rounded-2xl border border-slate-700 bg-slate-950/50 px-4 py-8 text-sm text-slate-300 md:hidden">
+            No patients match the current search.
+          </div>
+        ) : (
+          <div className="space-y-3 md:hidden">
+            {filteredPatients.map((patient) => {
+              const selected = patient.id === activePatientId;
+              const selectionBlocked = Boolean(
+                encounterActivePatientId && encounterActivePatientId !== patient.id,
+              );
+              return (
+                <button
+                  key={patient.id}
+                  type="button"
+                  disabled={selectionBlocked}
+                  onClick={() => handlePatientActivate(patient.id)}
+                  className={cn(
+                    "w-full rounded-2xl border border-slate-700 bg-slate-950/50 p-4 text-left transition-colors",
+                    selectionBlocked ? "cursor-not-allowed opacity-60" : "active:bg-slate-900/90",
+                    selected ? "border-cyan-500/40 bg-cyan-400/10" : "hover:bg-slate-900/70",
+                  )}
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-base font-semibold leading-snug text-slate-50">{patient.name}</p>
+                      {patient.summary ? <p className="text-sm text-slate-400">{patient.summary}</p> : null}
+                    </div>
+                    <p className="text-sm text-slate-300">
+                      {patient.age} / {patient.sex ?? "other"}
+                      <span className="text-slate-500"> · </span>
+                      Room {patient.room}
+                    </p>
+                    <p className="text-sm text-slate-300">
+                      <span className="text-slate-500">Last seen </span>
+                      {patient.lastSeen?.trim() ? patient.lastSeen : "—"}
+                    </p>
+                    <p className="text-sm leading-6 text-slate-200">{formatDisorders(patient)}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="hidden min-w-0 rounded-2xl border border-slate-700 bg-slate-950/50 md:block">
           <table className="w-full min-w-0 table-fixed border-collapse text-left">
             <thead className="bg-slate-950/80">
               <tr className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                <th className="w-[30%] px-4 py-3 font-medium">Patient</th>
+                <th className="w-[32%] px-4 py-3 font-medium">Patient</th>
                 <th className="w-[11%] px-4 py-3 font-medium">Age / Sex</th>
-                <th className="w-[26%] px-4 py-3 font-medium">Disorders</th>
-                <th className="w-[11%] px-4 py-3 font-medium">Room</th>
-                <th className="w-[12%] px-4 py-3 font-medium">Last Seen</th>
-                <th className="w-[10%] px-4 py-3 font-medium">Encounters</th>
+                <th className="w-[28%] px-4 py-3 font-medium">Disorders</th>
+                <th className="w-[12%] px-4 py-3 font-medium">Room</th>
+                <th className="w-[17%] px-4 py-3 font-medium">Last seen</th>
               </tr>
             </thead>
             <tbody>
               {filteredPatients.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm text-slate-300" colSpan={6}>
+                  <td className="px-4 py-8 text-sm text-slate-300" colSpan={5}>
                     No patients match the current search.
                   </td>
                 </tr>
@@ -535,13 +588,7 @@ export default function PatientDashboard({
                   return (
                     <tr
                       key={patient.id}
-                      onClick={() => {
-                        if (selectionBlocked) {
-                          return;
-                        }
-                        onSelectPatient(patient.id);
-                        setActionsPatientId(patient.id);
-                      }}
+                      onClick={() => handlePatientActivate(patient.id)}
                       className={cn(
                         "border-t border-slate-800/80 transition-colors",
                         selectionBlocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-slate-900/80",
@@ -561,8 +608,9 @@ export default function PatientDashboard({
                         {formatDisorders(patient)}
                       </td>
                       <td className="px-4 py-4 align-top text-sm break-words text-slate-200">{patient.room}</td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-200">{patient.lastSeen}</td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-200">{patient.encounterCount ?? 0}</td>
+                      <td className="px-4 py-4 align-top text-sm text-slate-200">
+                        {patient.lastSeen?.trim() ? patient.lastSeen : "—"}
+                      </td>
                     </tr>
                   );
                 })
