@@ -135,10 +135,6 @@ export default function Page() {
     router.push(`/encounter/${patientId}/record`);
   }
 
-  function startEncounter(patientId: string) {
-    pushRecordVisitFlow(patientId, "visit_conversation");
-  }
-
   function dictateEncounter(patientId: string) {
     pushRecordVisitFlow(patientId, "clinician_dictation");
   }
@@ -222,34 +218,23 @@ export default function Page() {
   }
 
   async function savePatient() {
-    const age = Number(newPatient.age);
-    if (!newPatient.name.trim() || !Number.isFinite(age)) {
-      return;
-    }
-
-    const formPatient = {
-      name: newPatient.name.trim(),
-      age,
-      sex: newPatient.sex,
-      room: newPatient.room.trim() || "Room TBD",
-      diagnoses: (
-        newPatient.diagnoses.length > 0 ? newPatient.diagnoses : ["dementia_behavior"]
-      ) as PatientRecord["diagnoses"],
-      enablePsychotherapy: newPatient.enablePsychotherapy,
-    };
-
-    const nextPatient: PatientRecord = {
-      id: `p-${Date.now()}`,
-      ...formPatient,
-      facility: "Long-term care facility",
-      transcript:
-        "Per staff, no acute concerns reported today. Patient seen for follow-up in the long-term care facility.",
-      status: "New patient",
-      summary: "Newly added patient record.",
-      lastSeen: "Today",
-    };
-
     if (patientFormMode === "edit" && editingPatientId) {
+      const age = Number(newPatient.age);
+      if (!newPatient.name.trim() || !Number.isFinite(age)) {
+        return;
+      }
+
+      const formPatient = {
+        name: newPatient.name.trim(),
+        age,
+        sex: newPatient.sex,
+        room: newPatient.room.trim() || "Room TBD",
+        diagnoses: (
+          newPatient.diagnoses.length > 0 ? newPatient.diagnoses : ["dementia_behavior"]
+        ) as PatientRecord["diagnoses"],
+        enablePsychotherapy: newPatient.enablePsychotherapy,
+      };
+
       const current = patients.find((entry) => entry.id === editingPatientId);
       if (!current) {
         closePatientForm();
@@ -298,6 +283,30 @@ export default function Page() {
       closePatientForm();
       return;
     }
+
+    if (patientFormMode !== "add") {
+      return;
+    }
+
+    if (!newPatient.name.trim()) {
+      return;
+    }
+
+    const nextPatient: PatientRecord = {
+      id: `p-${Date.now()}`,
+      name: newPatient.name.trim(),
+      age: 0,
+      sex: null,
+      room: "Room TBD",
+      diagnoses: [],
+      enablePsychotherapy: false,
+      facility: "Long-term care facility",
+      transcript:
+        "Per staff, no acute concerns reported today. Patient seen for follow-up in the long-term care facility.",
+      status: "New patient",
+      summary: "Newly added patient record.",
+      lastSeen: "Today",
+    };
 
     let savedPatient = nextPatient;
 
@@ -383,7 +392,6 @@ export default function Page() {
           searchQuery={searchQuery}
           sortKey={sortKey}
           onSelectPatient={selectPatient}
-          onStartEncounter={startEncounter}
           onDictateEncounter={dictateEncounter}
           onCancelEncounter={cancelEncounter}
           onViewSavedNotes={viewSavedNotes}
@@ -407,7 +415,7 @@ export default function Page() {
         />
 
         <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 px-4 py-8 text-sm text-slate-300 sm:rounded-3xl sm:px-6 sm:py-10">
-          Use <span className="font-medium text-slate-100">Start encounter</span> to record the visit and generate the
+          Use <span className="font-medium text-slate-100">Dictate encounter</span> to record the visit and generate the
           chart for the selected patient.
         </div>
       </div>

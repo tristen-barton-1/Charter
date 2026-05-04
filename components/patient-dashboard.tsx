@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AudioLines, FileText, Mic, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { AudioLines, FileText, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { cn, formatPatientLastSeen } from "@/lib/utils";
 import type { DiagnosisCode, PatientRecord, Sex } from "@/lib/types";
 import { diagnosisLabels, diagnosisOrder, formatList } from "@/lib/diagnoses";
 
@@ -50,7 +50,6 @@ export interface PatientDashboardProps {
   onSearchChange: (value: string) => void;
   onSortChange: (value: PatientSortKey) => void;
   onSelectPatient: (patientId: string) => void;
-  onStartEncounter: (patientId: string) => void;
   onDictateEncounter: (patientId: string) => void;
   onCancelEncounter: (patientId: string) => void;
   onViewSavedNotes: (patientId: string) => void;
@@ -71,6 +70,7 @@ function getSearchText(patient: PatientRecord): string {
     patient.summary,
     patient.status,
     patient.lastSeen,
+    patient.latestEncounterAt ?? "",
     formatDisorders(patient),
   ]
     .join(" ")
@@ -101,7 +101,6 @@ export default function PatientDashboard({
   onSearchChange,
   onSortChange,
   onSelectPatient,
-  onStartEncounter,
   onDictateEncounter,
   onCancelEncounter,
   onViewSavedNotes,
@@ -232,7 +231,29 @@ export default function PatientDashboard({
     setActionsPatientId(patientId);
   }
 
-  const patientFormFields = (
+  const patientFormFieldsAdd = (
+    <>
+      <label className="block space-y-1">
+        <span className="text-xs uppercase tracking-[0.16em] text-slate-400">Name</span>
+        <Input
+          value={newPatient.name}
+          onChange={(event) => updateNewPatient("name", event.currentTarget.value)}
+          placeholder="Patient name"
+          autoFocus
+        />
+      </label>
+      <p className="mt-3 text-sm leading-relaxed text-slate-400">
+        Age, sex, room, disorders, and psychotherapy settings will be picked up from your dictation and charting workflow.
+      </p>
+      <div className="mt-6 flex justify-end border-t border-slate-800 pt-6">
+        <Button type="button" onClick={onSavePatient}>
+          Save Patient
+        </Button>
+      </div>
+    </>
+  );
+
+  const patientFormFieldsEdit = (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="space-y-1">
@@ -308,11 +329,13 @@ export default function PatientDashboard({
 
       <div className="mt-6 flex justify-end border-t border-slate-800 pt-6">
         <Button type="button" onClick={onSavePatient}>
-          {patientFormMode === "edit" ? "Update Patient" : "Save Patient"}
+          Update Patient
         </Button>
       </div>
     </>
   );
+
+  const patientFormFields = patientFormMode === "add" ? patientFormFieldsAdd : patientFormFieldsEdit;
 
   const patientFormTitle = (
     <div className="mb-4 flex items-start justify-between gap-4">
@@ -323,7 +346,7 @@ export default function PatientDashboard({
         <p className="text-sm text-slate-300">
           {patientFormMode === "edit"
             ? "Update resident details and save changes."
-            : "Add a new LTC resident to the census."}
+            : "Enter a name to add them to the census; clinical details come from charting."}
         </p>
       </div>
       <Button type="button" variant="ghost" size="sm" onClick={onClosePatientForm}>
@@ -346,7 +369,10 @@ export default function PatientDashboard({
               role="dialog"
               aria-modal="true"
               aria-labelledby="patient-form-title"
-              className="relative z-10 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-700/90 bg-slate-900 p-5 shadow-2xl sm:p-8"
+              className={cn(
+                "relative z-10 w-full max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-700/90 bg-slate-900 p-5 shadow-2xl sm:p-8",
+                patientFormMode === "add" ? "max-w-md" : "max-w-5xl",
+              )}
               onClick={(event) => event.stopPropagation()}
             >
               {patientFormTitle}
@@ -383,7 +409,7 @@ export default function PatientDashboard({
                     </p>
                     <p className="text-sm text-slate-400">
                       Room {actionsPatient.room} · {actionsPatient.age} / {actionsPatient.sex ?? "other"} · Last seen{" "}
-                      {actionsPatient.lastSeen?.trim() ? actionsPatient.lastSeen : "—"}
+                      {formatPatientLastSeen(actionsPatient)}
                     </p>
                   </div>
                   <Button
@@ -450,26 +476,12 @@ export default function PatientDashboard({
                         onCancelEncounter(actionsPatient.id);
                         return;
                       }
-                      onStartEncounter(actionsPatient.id);
+                      onDictateEncounter(actionsPatient.id);
                     }}
                   >
-                    {actionsEncounterActive ? <X className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                    <span>{actionsEncounterActive ? "Cancel encounter" : "Start encounter"}</span>
+                    {actionsEncounterActive ? <X className="h-4 w-4" /> : <AudioLines className="h-4 w-4" />}
+                    <span>{actionsEncounterActive ? "Cancel encounter" : "Dictate encounter"}</span>
                   </Button>
-                  {!actionsEncounterActive ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 justify-center gap-2 rounded-xl border-slate-600 bg-slate-950/50"
-                      onClick={() => {
-                        setActionsPatientId(null);
-                        onDictateEncounter(actionsPatient.id);
-                      }}
-                    >
-                      <AudioLines className="h-4 w-4" />
-                      <span>Dictate encounter</span>
-                    </Button>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -555,21 +567,12 @@ export default function PatientDashboard({
                     selected ? "border-cyan-500/40 bg-cyan-400/10" : "hover:bg-slate-900/70",
                   )}
                 >
-                  <div className="flex flex-col gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="text-base font-semibold leading-snug text-slate-50">{patient.name}</p>
-                      {patient.summary ? <p className="text-sm text-slate-400">{patient.summary}</p> : null}
-                    </div>
-                    <p className="text-sm text-slate-300">
-                      {patient.age} / {patient.sex ?? "other"}
-                      <span className="text-slate-500"> · </span>
-                      Room {patient.room}
+                  <div className="grid grid-cols-3 gap-2 text-sm sm:gap-4">
+                    <p className="min-w-0 text-left text-base font-semibold leading-snug text-slate-50">
+                      {patient.name}
                     </p>
-                    <p className="text-sm text-slate-300">
-                      <span className="text-slate-500">Last seen </span>
-                      {patient.lastSeen?.trim() ? patient.lastSeen : "—"}
-                    </p>
-                    <p className="text-sm leading-6 text-slate-200">{formatDisorders(patient)}</p>
+                    <p className="text-right tabular-nums text-slate-200">{patient.encounterCount ?? 0}</p>
+                    <p className="min-w-0 text-right text-slate-300">{formatPatientLastSeen(patient)}</p>
                   </div>
                 </button>
               );
@@ -578,20 +581,18 @@ export default function PatientDashboard({
         )}
 
         <div className="hidden min-w-0 rounded-2xl border border-slate-700 bg-slate-950/50 md:block">
-          <table className="w-full min-w-0 table-fixed border-collapse text-left">
+          <table className="w-full min-w-0 table-fixed border-collapse">
             <thead className="bg-slate-950/80">
               <tr className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                <th className="w-[32%] px-4 py-3 font-medium">Patient</th>
-                <th className="w-[11%] px-4 py-3 font-medium">Age / Sex</th>
-                <th className="w-[28%] px-4 py-3 font-medium">Disorders</th>
-                <th className="w-[12%] px-4 py-3 font-medium">Room</th>
-                <th className="w-[17%] px-4 py-3 font-medium">Last seen</th>
+                <th className="w-1/3 px-4 py-3 text-left font-medium">Name</th>
+                <th className="w-1/3 px-4 py-3 text-right font-medium">Encounters</th>
+                <th className="w-1/3 px-4 py-3 text-right font-medium">Last seen</th>
               </tr>
             </thead>
             <tbody>
               {filteredPatients.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm text-slate-300" colSpan={5}>
+                  <td className="px-4 py-8 text-sm text-slate-300" colSpan={3}>
                     No patients match the current search.
                   </td>
                 </tr>
@@ -611,21 +612,14 @@ export default function PatientDashboard({
                         selected ? "bg-cyan-400/10" : "",
                       )}
                     >
-                      <td className="px-4 py-4 align-top">
-                        <div className="min-w-0 space-y-1 break-words">
-                          <p className="font-semibold text-slate-50">{patient.name}</p>
-                          <p className="text-sm text-slate-400">{patient.summary}</p>
-                        </div>
+                      <td className="px-4 py-4 align-top text-left">
+                        <p className="min-w-0 break-words font-semibold text-slate-50">{patient.name}</p>
                       </td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-200">
-                        {patient.age} / {patient.sex ?? "other"}
+                      <td className="px-4 py-4 align-top text-right text-sm tabular-nums text-slate-200">
+                        {patient.encounterCount ?? 0}
                       </td>
-                      <td className="px-4 py-4 align-top text-sm leading-6 text-slate-200 break-words">
-                        {formatDisorders(patient)}
-                      </td>
-                      <td className="px-4 py-4 align-top text-sm break-words text-slate-200">{patient.room}</td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-200">
-                        {patient.lastSeen?.trim() ? patient.lastSeen : "—"}
+                      <td className="px-4 py-4 align-top text-right text-sm text-slate-200">
+                        {formatPatientLastSeen(patient)}
                       </td>
                     </tr>
                   );
