@@ -140,9 +140,16 @@ Reliability:
 Use only supported findings.
 
 FORMAT GUIDANCE — notes.plan:
-Write problem-based POC with medication specificity when available.
+Write a problem-based Plan of Care (POC) organized by disorder/diagnosis (or clinical domain when diagnoses are unclear).
 
-Avoid repeating HPI. Focus on treatment, monitoring, and follow-up.
+Format requirements (plaintext only — no markdown):
+- Use short section headers in Title Case, ending with a colon (e.g., "Major Depressive Disorder / Mood:").
+- Under each header, use bullet points starting with "- " (dash + space).
+- Keep bullets concise and clinically actionable (treatment, monitoring, follow-up, staff/MAR review, safety).
+- Add "Medication Management:", "Safety / Monitoring:", and "Follow-Up:" sections when supported.
+- If sleep/appetite or other domains are mentioned, add a "Sleep / Appetite:" (or similar) section.
+
+Avoid repeating HPI. Focus on decisions, monitoring, and next steps.
 
 99309 SUPPORT GUIDANCE:
 The note should support subsequent nursing facility psychiatric follow-up through clinical substance.
