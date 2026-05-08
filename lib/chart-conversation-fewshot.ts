@@ -140,16 +140,31 @@ Reliability:
 Use only supported findings.
 
 FORMAT GUIDANCE — notes.plan:
-Write a problem-based Plan of Care (POC) organized by disorder/diagnosis (or clinical domain when diagnoses are unclear).
+The notes.plan field must be a full Plan of Care (POC), not one narrative paragraph.
 
-Format requirements (plaintext only — no markdown):
-- Use short section headers in Title Case, ending with a colon (e.g., "Major Depressive Disorder / Mood:").
-- Under each header, use bullet points starting with "- " (dash + space).
-- Keep bullets concise and clinically actionable (treatment, monitoring, follow-up, staff/MAR review, safety).
-- Add "Medication Management:", "Safety / Monitoring:", and "Follow-Up:" sections when supported.
-- If sleep/appetite or other domains are mentioned, add a "Sleep / Appetite:" (or similar) section.
+Structure (plaintext only — no markdown, no bold, no asterisks):
+- Begin with this exact first line: Plan of Care (POC):
+- Leave one blank line after that title line.
+- Then write one section per clinically relevant diagnosis or problem cluster from the transcript. Header examples (use labels that match the encounter, not generic placeholders): Major Depressive Disorder:, Generalized Anxiety Disorder:, Suicidal Ideation / Safety:, Thought Disturbance / Cognitive Impairment:, Dementia with Behavioral Disturbance:, etc.
 
-Avoid repeating HPI. Focus on decisions, monitoring, and next steps.
+Per-diagnosis POC requirement:
+- Each diagnosis or problem cluster gets its own header line (Title Case, ending with a colon).
+- Under every such header, write a substantive bullet list (typically 2–5 bullets; more when risk, safety, or medical complexity warrants).
+- Bullets for that section must fully cover POC content for that problem: pertinent medications or class-level guidance when stated, monitoring for worsening or relapse, nursing/staff monitoring or protocols when stated, behavioral or environmental measures, safety measures when applicable, and psychotherapy-linked actions when tied to that diagnosis.
+- Do not merge multiple diagnoses under one header; do not dump all plans into a single undifferentiated bullet list.
+
+Additional sections when supported by the transcript (each with its own header and "- " bullets):
+- Psychotherapy: POC-level psychotherapy actions when psychotherapy is in scope (still complete notes.psychotherapy separately when psychotherapy applies).
+- Sleep / Appetite:
+- Follow-Up: reassessment targets, coordination or IDT language when stated, cadence when stated.
+
+When medications are diagnosis-specific, place bullets under that diagnosis (e.g., continue or monitor named agents). Use Medication Management: only when a cross-cutting psychotropic review fits better than splitting by diagnosis.
+
+Use bullet lines starting with "- " (dash + space) under each header.
+
+Avoid repeating HPI; POC should read as management, monitoring, and follow-through.
+
+Apply DENIAL CONSOLIDATION RULE within sections — consolidate redundant denials into natural clinical wording without collapsing separate diagnoses into one block.
 
 99309 SUPPORT GUIDANCE:
 The note should support subsequent nursing facility psychiatric follow-up through clinical substance.
