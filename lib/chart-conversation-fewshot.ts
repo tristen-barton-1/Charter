@@ -71,7 +71,9 @@ The output should read as a polished follow-up psychiatric note written by an ex
 INPUT:
 ${transcriptInputLine}
 
-The transcript is the only source of truth. Extract demographics, diagnoses, medications, symptoms, staff report, safety findings, psychotherapy status, MSE findings, and plan details only when stated or clearly implied.
+The transcript is the only source of truth. It may include the patient's prior chart (HPI, MSE, POC) inline; when present, the diagnoses, medications, and active problems in that prior chart are part of the transcript and must be carried forward.
+
+Extract demographics, diagnoses, medications, symptoms, staff report, safety findings, psychotherapy status, MSE findings, and plan details only when stated or clearly implied in the transcript.
 
 When the transcript contains a prior note, create a fresh follow-up note that preserves the clinical facts but does not duplicate the wording. Keep the clinical meaning unless new information is provided.
 ${dictationInterpretationBlock}
@@ -145,13 +147,62 @@ The notes.plan field must be a full Plan of Care (POC), not one narrative paragr
 Structure (plaintext only — no markdown, no bold, no asterisks):
 - Begin with this exact first line: Plan of Care (POC):
 - Leave one blank line after that title line.
-- Then write one section per clinically relevant diagnosis or problem cluster from the transcript. Header examples (use labels that match the encounter, not generic placeholders): Major Depressive Disorder:, Generalized Anxiety Disorder:, Suicidal Ideation / Safety:, Thought Disturbance / Cognitive Impairment:, Dementia with Behavioral Disturbance:, etc.
+- Then write one section per active diagnosis from the transcript. Header examples (use labels that match the encounter, not generic placeholders): Major Depressive Disorder:, Generalized Anxiety Disorder:, Suicidal Ideation / Safety:, Thought Disturbance / Cognitive Impairment:, Dementia with Behavioral Disturbance:, etc.
+
+DIAGNOSIS COVERAGE RULE (mandatory):
+
+Before writing the POC, identify every distinct psychiatric or behavioral diagnosis named anywhere in the transcript. This includes:
+- Diagnoses listed in any embedded prior chart (HPI, assessment, problem list, prior POC).
+- Diagnoses stated by the clinician in dictation or dialogue.
+- Diagnoses implied by named conditions in the transcript (e.g., "Alzheimer's," "MDD," "GAD," "schizoaffective," "bipolar," "insomnia," "behavioral disturbance," "delusional disorder").
+
+The POC MUST contain one dedicated header + bullet section for EVERY one of those diagnoses. No exceptions.
+
+If you find N distinct diagnoses in the transcript, the POC must contain at least N per-diagnosis sections (plus any cross-cutting sections such as Sleep / Appetite, Safety, Psychotherapy, Follow-Up).
+
+Do NOT:
+- Omit a diagnosis because the transcript provides limited new detail. In that case, the section still appears with bullets covering current medication status, ongoing monitoring, and reassessment cadence.
+- Merge two or more diagnoses under one header (e.g., do not combine MDD and GAD into a single "Mood and Anxiety:" block).
+- Replace specific diagnosis headers with a generic catch-all like "Psychiatric Conditions:" or "Other Diagnoses:".
+- Move a diagnosis into Medication Management: just because it shares an agent with another diagnosis.
 
 Per-diagnosis POC requirement:
-- Each diagnosis or problem cluster gets its own header line (Title Case, ending with a colon).
+- Each diagnosis gets its own header line (Title Case, ending with a colon).
 - Under every such header, write a substantive bullet list (typically 2–5 bullets; more when risk, safety, or medical complexity warrants).
-- Bullets for that section must fully cover POC content for that problem: pertinent medications or class-level guidance when stated, monitoring for worsening or relapse, nursing/staff monitoring or protocols when stated, behavioral or environmental measures, safety measures when applicable, and psychotherapy-linked actions when tied to that diagnosis.
-- Do not merge multiple diagnoses under one header; do not dump all plans into a single undifferentiated bullet list.
+- Bullets must fully cover POC content for that problem: pertinent medications or class-level guidance when stated, monitoring for worsening or relapse, nursing/staff monitoring or protocols when stated, behavioral or environmental measures, safety measures when applicable, and psychotherapy-linked actions when tied to that diagnosis.
+
+POC FORMAT EXAMPLE (shape only — do NOT copy these bullets verbatim into a real note; replace with content drawn from the actual transcript):
+
+Plan of Care (POC):
+
+Major Depressive Disorder / Mood:
+- Continue current antidepressant regimen
+- Monitor for recurrence of depressive symptoms
+
+Dementia with Anxiety / Mood Disturbance:
+- Maintain structured environment and consistent routine
+- Continue non-pharmacologic interventions including reassurance and redirection
+- Monitor for anxiety, agitation, or mood changes
+
+Medication Management:
+- Continue current psychotropic medications as ordered
+- Monitor for adverse effects, including sedation, falls, and cognitive changes
+
+Sleep / Appetite:
+- Stable; continue monitoring
+
+Safety / Monitoring:
+- No SI/HI or behavioral concerns
+- Continue routine behavioral and safety monitoring
+
+Follow-Up:
+- Continue regular psychiatric follow-up
+- Reassess mood, anxiety, cognition, and medication tolerability at next visit
+
+Notes on the example:
+- Every diagnosis from the transcript appears as its own header section. If the transcript named three diagnoses, three diagnosis sections would appear here (not two).
+- Cross-cutting sections (Medication Management, Sleep / Appetite, Safety / Monitoring, Follow-Up) follow the per-diagnosis sections — they never replace them.
+- Headers and bullets are plaintext only — no markdown, no bold, no asterisks.
 
 Additional sections when supported by the transcript (each with its own header and "- " bullets):
 - Psychotherapy: POC-level psychotherapy actions when psychotherapy is in scope (still complete notes.psychotherapy separately when psychotherapy applies).

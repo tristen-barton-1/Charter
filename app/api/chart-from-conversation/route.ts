@@ -26,7 +26,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "OPENAI_API_KEY is not configured." }, { status: 503 });
   }
 
-  const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
+  const polishModel = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
+  const chartModel = process.env.OPENAI_CHART_MODEL?.trim() || polishModel;
 
   const body = (await request.json().catch(() => null)) as Body | null;
   const rawTranscript = typeof body?.transcript === "string" ? body.transcript : "";
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   const enablePsychotherapy = Boolean(encounterInput?.enablePsychotherapy);
 
-  const transcriptForChart = await formatTranscriptForAi(rawTranscript, apiKey, model);
+  const transcriptForChart = await formatTranscriptForAi(rawTranscript, apiKey, polishModel);
   const rawTrim = rawTranscript.trim();
   const polishedTranscript =
     transcriptForChart.trim() && transcriptForChart.trim() !== rawTrim ? transcriptForChart.trim() : undefined;
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
   const transcriptLabel = chartSource === "clinician_dictation" ? "CLINICIAN_DICTATION" : "VISIT_TRANSCRIPT";
   const userContent = `PATIENT_CONTEXT_JSON:\n${JSON.stringify(patientPayload, null, 2)}\n\n${transcriptLabel}:\n${transcriptForChart.trim() || "(empty)"}`;
 
-  const chartingAgent = createPsychChartingAgent(model, chartSource);
+  const chartingAgent = createPsychChartingAgent(chartModel, chartSource);
 
   let finalOutput: unknown;
   try {
