@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { run } from "@openai/agents";
-import type { DiagnosisCode, EncounterInput, PatientRecord } from "@/lib/types";
+import type { EncounterInput, NoteOutputs, ParsedEncounter, PatientRecord, SavedChart } from "@/lib/types";
 import type { ChartTranscriptSource } from "@/lib/record-flow-storage";
 import { normalizeAiChartPayload } from "@/lib/ai-chart-response";
-import { diagnosisLabels } from "@/lib/diagnoses";
 import { createPsychChartingAgent } from "@/lib/charting-agent";
 import { formatTranscriptForAi } from "@/lib/transcript-server-format";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { devMemoryListEncounters } from "@/lib/dev-api-memory";
 
 export const maxDuration = 120;
 
@@ -14,10 +15,124 @@ type Body = {
   transcript?: string;
   encounterInput?: EncounterInput | null;
   chartSource?: ChartTranscriptSource | string | null;
+
+  /**
+   * Optional override. If supplied, this is treated as LAST_CHART_CONTEXT.
+   * Otherwise the route fetches the most recent encounter whose saved chart has HPI, MSE, and POC.
+   */
+  context?: string | null;
+  lastChartContext?: string | null;
 };
 
 function normalizeChartSource(raw: unknown): ChartTranscriptSource {
   return raw === "clinician_dictation" ? "clinician_dictation" : "visit_conversation";
+}
+
+function trimContext(value: string, maxChars = 12000): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return trimmed.slice(0, maxChars).trimEnd();
+}
+
+function formatSavedChartForLastChartContext(chart: SavedChart | null): string {
+  if (!chart) return "";
+
+  const notes = chart.notes ?? chart.generatedNotes;
+  const parts: string[] = [];
+
+  parts.push(`Prior chart date: ${chart.endedAt ?? chart.createdAt ?? chart.startedAt ?? "unknown"}`);
+
+  if (typeof chart.transcript === "string" && chart.transcript.trim()) {
+    parts.push(`Prior transcript / dictation:\n${chart.transcript.trim()}`);
+  }
+
+  if (notes?.hpi?.trim()) {
+    parts.push(`Prior HPI:\n${notes.hpi.trim()}`);
+  }
+
+  if (notes?.mse?.trim()) {
+    parts.push(`Prior MSE:\n${notes.mse.trim()}`);
+  }
+
+  if (notes?.plan?.trim()) {
+    parts.push(`Prior POC:\n${notes.plan.trim()}`);
+  }
+
+  if (notes?.psychotherapy?.trim()) {
+    parts.push(`Prior Psychotherapy Note:\n${notes.psychotherapy.trim()}`);
+  }
+
+  return trimContext(parts.join("\n\n---\n\n"));
+}
+
+function encounterHasHpiMsePoc(chart: SavedChart): boolean {
+  const n = chart.notes;
+  const g = chart.generatedNotes;
+  const hpi = ((n?.hpi ?? "").trim() || (g?.hpi ?? "").trim()).length > 0;
+  const mse = ((n?.mse ?? "").trim() || (g?.mse ?? "").trim()).length > 0;
+  const plan = ((n?.plan ?? "").trim() || (g?.plan ?? "").trim()).length > 0;
+  return hpi && mse && plan;
+}
+
+function rowToSavedChart(data: {
+  id: string;
+  patient_id: string;
+  created_at: string;
+  updated_at: string;
+  started_at: string;
+  ended_at: string | null;
+  transcript: string | null;
+  input: unknown;
+  parsed: unknown;
+  notes: unknown;
+  generated_notes: unknown;
+}): SavedChart {
+  return {
+    id: data.id,
+    patientId: data.patient_id,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    startedAt: data.started_at,
+    endedAt: data.ended_at,
+    transcript: data.transcript ?? "",
+    input: data.input as EncounterInput,
+    parsed: data.parsed as ParsedEncounter,
+    notes: data.notes as NoteOutputs,
+    generatedNotes: data.generated_notes as NoteOutputs,
+  };
+}
+
+const PRIOR_CHART_SCAN_LIMIT = 80;
+
+async function fetchLatestPriorChart(patientId: string): Promise<SavedChart | null> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    const encounters = devMemoryListEncounters(patientId);
+    return encounters.find(encounterHasHpiMsePoc) ?? null;
+  }
+
+  const { data, error } = await supabase
+    .from("encounters")
+    .select("id, patient_id, started_at, ended_at, transcript, input, parsed, notes, generated_notes, created_at, updated_at")
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false })
+    .limit(PRIOR_CHART_SCAN_LIMIT);
+
+  if (error) {
+    console.warn("Unable to fetch last chart context:", error.message);
+    return null;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  for (const row of rows) {
+    const chart = rowToSavedChart(row);
+    if (encounterHasHpiMsePoc(chart)) {
+      return chart;
+    }
+  }
+
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -35,15 +150,14 @@ export async function POST(request: Request) {
   const encounterInput = body?.encounterInput && typeof body.encounterInput === "object" ? body.encounterInput : null;
   const chartSource = normalizeChartSource(body?.chartSource);
 
-  if (!patient || typeof patient.name !== "string") {
+  /**
+   * Patient is still required only so the app knows which organizational record
+   * to attach the encounter to and so we can locate a prior encounter with HPI/MSE/POC.
+   * Do not send patient demographic/diagnosis context to the model.
+   */
+  if (!patient || typeof patient.id !== "string" || typeof patient.name !== "string") {
     return NextResponse.json({ error: "Invalid request: patient required." }, { status: 400 });
   }
-
-  const diagnoses = Array.isArray(patient.diagnoses)
-    ? (patient.diagnoses.filter((c): c is DiagnosisCode => typeof c === "string" && c in diagnosisLabels) as DiagnosisCode[])
-    : [];
-
-  const diagnosisNames = diagnoses.map((code) => diagnosisLabels[code]);
 
   const enablePsychotherapy = Boolean(encounterInput?.enablePsychotherapy);
 
@@ -52,25 +166,25 @@ export async function POST(request: Request) {
   const polishedTranscript =
     transcriptForChart.trim() && transcriptForChart.trim() !== rawTrim ? transcriptForChart.trim() : undefined;
 
-  const patientPayload = {
-    name: patient.name,
-    age: typeof patient.age === "number" ? patient.age : null,
-    sex: patient.sex ?? null,
-    room: typeof patient.room === "string" ? patient.room : "",
-    facility: typeof patient.facility === "string" ? patient.facility : "",
-    diagnoses: diagnosisNames,
-    summary: typeof patient.summary === "string" ? patient.summary : "",
-    status: typeof patient.status === "string" ? patient.status : "",
-    enablePsychotherapy,
-    encounterAge: encounterInput?.age ?? null,
-    encounterSex: encounterInput?.sex ?? null,
-    encounterDiagnoses: (encounterInput?.diagnoses ?? diagnoses).map((code) =>
-      typeof code === "string" && code in diagnosisLabels ? diagnosisLabels[code as DiagnosisCode] : String(code),
-    ),
-  };
+  const explicitContext =
+    typeof body?.lastChartContext === "string"
+      ? body.lastChartContext
+      : typeof body?.context === "string"
+        ? body.context
+        : "";
 
-  const transcriptLabel = chartSource === "clinician_dictation" ? "CLINICIAN_DICTATION" : "VISIT_TRANSCRIPT";
-  const userContent = `PATIENT_CONTEXT_JSON:\n${JSON.stringify(patientPayload, null, 2)}\n\n${transcriptLabel}:\n${transcriptForChart.trim() || "(empty)"}`;
+  const lastChartContext =
+    explicitContext.trim() ||
+    formatSavedChartForLastChartContext(await fetchLatestPriorChart(patient.id));
+
+  const userContent = `TODAY_TRANSCRIPT:
+${transcriptForChart.trim() || "(empty)"}
+
+LAST_CHART_CONTEXT:
+${lastChartContext.trim() || "(none)"}
+
+Task:
+Create a psychiatric follow-up chart from TODAY_TRANSCRIPT using LAST_CHART_CONTEXT only for continuity and baseline reference. Make the HPI and MSE thorough, natural, and clinically useful. Support 99309 through clinical substance. Return the required JSON object only.`;
 
   const chartingAgent = createPsychChartingAgent(chartModel, chartSource);
 

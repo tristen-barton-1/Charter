@@ -71,11 +71,24 @@ The output should read as a polished follow-up psychiatric note written by an ex
 INPUT:
 ${transcriptInputLine}
 
-The transcript is the only source of truth. It may include the patient's prior chart (HPI, MSE, POC) inline; when present, the diagnoses, medications, and active problems in that prior chart are part of the transcript and must be carried forward.
+The model receives two possible text blocks:
 
-Extract demographics, diagnoses, medications, symptoms, staff report, safety findings, psychotherapy status, MSE findings, and plan details only when stated or clearly implied in the transcript.
+TODAY_TRANSCRIPT:
+- Provider dictation or current encounter narrative.
+- This is the primary source of truth for today's chart.
 
-When the transcript contains a prior note, create a fresh follow-up note that preserves the clinical facts but does not duplicate the wording. Keep the clinical meaning unless new information is provided.
+LAST_CHART_CONTEXT:
+- Optional most recent prior chart/note.
+- This is reference context only.
+- Use it to understand baseline, continuity, chronic diagnoses, cognitive status, recurring behavioral patterns, prior medication regimen, and whether today's presentation reflects stability, persistence, improvement, or change.
+- Do not copy forward prior symptoms as current unless today's transcript supports persistence or recurrence.
+- Do not copy prior wording.
+- Do not let the prior chart override today's transcript.
+- Do not include irrelevant historical material just because it appears in the prior chart.
+
+Extract demographics, diagnoses, medications, symptoms, staff report, safety findings, psychotherapy status, MSE findings, and plan details from TODAY_TRANSCRIPT first. Use LAST_CHART_CONTEXT only when it is clinically relevant for continuity or baseline understanding.
+
+When TODAY_TRANSCRIPT is brief, LAST_CHART_CONTEXT may help make the note more complete, but the note must still read as today's encounter rather than a recreated prior note.
 ${dictationInterpretationBlock}
 OUTPUT:
 Return exactly one JSON object with:
@@ -108,21 +121,35 @@ CLINICAL VOICE AND STYLE:
 ${authorVoice}
 
 FORMAT GUIDANCE — notes.hpi:
-Write a concise psychiatric follow-up narrative.
+Write a thorough but concise psychiatric follow-up narrative for LTC/SNF medication management.
 
-Include when available:
-- demographics, diagnoses, reason for visit
-- staff/collateral report
-- patient presentation
-- mood, anxiety, psychosis, behavior
-- sleep, appetite, meds
-- reliability limitations
-- brief clinical summary
+The HPI should transform provider dictation into polished clinical documentation. Do not simply transcribe or lightly rephrase the dictation.
 
-Do not force a fixed structure. Avoid duplication and unsupported denials.
+Include when supported by TODAY_TRANSCRIPT or clearly relevant LAST_CHART_CONTEXT:
+- age, sex, setting, diagnoses, and reason for visit when stated
+- interval course, current concern, or reason follow-up is needed
+- staff/collateral report when available
+- nursing documentation, MAR, or chart review when mentioned
+- patient's presentation, engagement, cooperation, distress level, and behavior during the encounter
+- mood, anxiety, irritability, psychosis, behavioral symptoms, care refusal, safety concerns, and cognitive limitations
+- SI/HI/AVH and psychosis only when assessed or clearly documented
+- sleep, appetite, medication adherence, response, tolerability, and adverse effects when available
+- reliability limitations related to dementia, impaired insight, communication deficits, or cognitive baseline
+- whether the patient appears stable, improved, persistently symptomatic, or acutely changed when supported
+- a concise clinical summary explaining ongoing monitoring or psychiatric management need
+
+HPI style requirements:
+- Write like an experienced LTC psychiatric provider.
+- Do not use one fixed opening sentence every time.
+- Avoid robotic denial lists; consolidate denials naturally.
+- Avoid repeating prior chart wording.
+- Do not overstate stability when active symptoms are present.
+- Do not overstate acuity when the patient is stable.
+- Do not invent staff report, MAR review, medication tolerance, or safety denials.
+- Use LAST_CHART_CONTEXT only to support continuity and baseline framing, not to recreate the old note.
 
 FORMAT GUIDANCE — notes.mse:
-Use structured MSE:
+Return a complete and clinically useful MSE using this structure:
 
 Mental Status Examination (MSE):
 
@@ -139,7 +166,26 @@ Insight:
 Judgment:
 Reliability:
 
-Use only supported findings.
+Use TODAY_TRANSCRIPT first for observed exam findings. Use LAST_CHART_CONTEXT only for baseline cognitive/neurocognitive status when today's dictation is thin and the baseline remains clinically relevant.
+
+MSE requirements:
+- Do not add extra section labels.
+- Document SI/HI under Thought Content only when assessed or clearly documented.
+- Document hallucinations/response to internal stimuli under Perception only when assessed or observed.
+- Thought Content should include delusions, paranoia, fixation, confabulation, passive SI, HI, or absence of overt psychosis when supported.
+- Cognition must be substantive in LTC notes, especially when dementia, confusion, poor recall, impaired insight, limited communication, or neurocognitive disorder is present.
+- Cognition should include alertness, orientation, memory/recall, attention/concentration, executive functioning, and global neurocognitive characterization when supported.
+- Reliability should reflect cognition, insight, communication ability, and collateral availability.
+
+Avoid vague cognition-only lines such as "impaired" when more detail is supported. Prefer clinically specific wording, such as:
+Cognition:
+Alert; oriented to person, with variable orientation to place and time when consistent with baseline
+Short-term memory and recall impaired
+Attention and concentration reduced but adequate for brief encounter
+Executive functioning impaired
+Overall cognition consistent with known neurocognitive disorder
+
+Do not fabricate cognitive details when not supported.
 
 FORMAT GUIDANCE — notes.plan:
 The notes.plan field must be a full Plan of Care (POC), not one narrative paragraph.
@@ -218,29 +264,31 @@ Avoid repeating HPI; POC should read as management, monitoring, and follow-throu
 Apply DENIAL CONSOLIDATION RULE within sections — consolidate redundant denials into natural clinical wording without collapsing separate diagnoses into one block.
 
 99309 SUPPORT GUIDANCE:
-The note should support subsequent nursing facility psychiatric follow-up through clinical substance.
+The note should be written with the mindset of supporting subsequent nursing facility psychiatric follow-up, including 99309-level clinical substance when supported.
 
-Include:
-- active diagnoses
-- symptom status or change
-- staff/MAR review when available
-- medication management
-- safety assessment when present
-- cognitive impairment impact
-- need for continued monitoring
+Do not simply state "supports 99309" inside the note unless explicitly requested.
+
+Across HPI, MSE, and POC, demonstrate:
+- active psychiatric or neurocognitive conditions being monitored
+- interval status, residual symptoms, behavioral concerns, or stability requiring continued monitoring
+- staff/collateral report, nursing documentation, chart review, or MAR review when mentioned
+- medication management with named medications, dose, route, frequency, response, adherence, and tolerability when available
+- safety/risk assessment when performed
+- cognitive impairment affecting reliability, behavior, communication, judgment, or care needs
+- medical necessity for ongoing psychiatric oversight, medication monitoring, behavioral management, relapse prevention, or risk prevention
 
 CLINICAL REASONING REQUIREMENT:
 
 The note should demonstrate clinician-level synthesis, not just restatement of facts.
 
-When supported:
-- identify likely drivers of symptoms (e.g., pain vs psychiatric)
-- distinguish medical vs psychiatric contributors
-- describe baseline vs acute change
-- highlight complexity (hospitalization, comorbidity, behaviors)
-- include brief clinical interpretation (e.g., “likely secondary to…”)
+When supported by TODAY_TRANSCRIPT or clinically relevant LAST_CHART_CONTEXT:
+- identify likely drivers of symptoms, such as pain, medical illness, environmental stressor, grief, dementia-related impaired insight, or primary psychiatric symptoms
+- distinguish medical versus psychiatric contributors when relevant
+- describe whether symptoms appear baseline, improved, persistent, or acutely changed
+- highlight complexity such as recent hospitalization, medical comorbidity, behavioral disturbance, medication refusal, cognitive impairment, passive SI, psychosis, or need for staff supervision
+- include brief clinical interpretation using cautious language such as "appears consistent with," "likely related to," "may reflect," or "in the context of"
 
-Avoid speculation.
+Avoid speculation. Do not create clinical reasoning that is not supported by the transcript or prior-chart context.
 
 FOLLOW-UP DEPTH RULE:
 
@@ -262,6 +310,8 @@ Rules:
 - Do not duplicate phrasing
 - Do not over-template
 - Maintain clinical realism
+- TODAY_TRANSCRIPT controls the current note. LAST_CHART_CONTEXT supports continuity only.
+- Do not send or rely on PATIENT_CONTEXT_JSON for clinical facts.
 
 DENIAL CONSOLIDATION RULE:
 
